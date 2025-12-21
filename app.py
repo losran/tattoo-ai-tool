@@ -1,77 +1,136 @@
 import streamlit as st
 from openai import OpenAI
 import random
-import os
 
-# --- 配置区 ---
-# 请重新填入你的 KEY
+# 配置
 client = OpenAI(api_key='sk-b18b6a62e0374b3ebab3d961c4806a4c', base_url="https://api.deepseek.com")
 
-st.set_page_config(page_title="纹身贴创意控制台 Pro", layout="wide")
+st.set_page_config(page_title="Tattoo Studio Pro", layout="wide")
 
-# 强制使用 UTF-8 读取的函数
-def load_words(file_name):
-    path = f"data/{file_name}.txt"
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return [l.strip() for l in f.readlines() if l.strip()]
-    return []
+# --- Figma 风格 CSS 注入 ---
+st.markdown("""
+    <style>
+    /* 引入苹果风格字体 */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    
+    html, body, [class*="st-"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: #f5f5f7;
+    }
 
-def save_word(file_name, word):
-    path = f"data/{file_name}.txt"
-    existing = load_words(file_name)
-    if word not in existing and word:
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(word + "\n")
+    /* 模拟 Figma 自动布局容器 */
+    .flex-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px 0;
+    }
 
-# --- 侧边栏：录入 ---
-st.sidebar.header("📥 样板素材导入")
-user_input = st.sidebar.text_area("输入中文样板描述：", height=150)
-if st.sidebar.button("✨ 自动化拆解入库"):
-    if user_input:
-        with st.spinner('AI 正在拆分零件...'):
+    /* 苹果风格的胶囊零件 */
+    .chip {
+        background: white;
+        border: 1px solid #d2d2d7;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        color: #1d1d1f;
+        font-weight: 500;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        transition: all 0.2s ease;
+    }
+    .chip:hover {
+        border-color: #0071e3;
+        color: #0071e3;
+        transform: translateY(-1px);
+    }
+
+    /* 侧边栏对齐优化 */
+    .stSidebar { background-color: #ffffff; border-right: 1px solid #d2d2d7; }
+    
+    /* 大标题苹果味优化 */
+    h1 { font-weight: 600 !important; letter-spacing: -0.5px !important; color: #1d1d1f !important; }
+    h3 { font-size: 16px !important; font-weight: 600 !important; color: #86868b !important; margin-bottom: 5px !important; }
+
+    /* 生成结果卡片 */
+    .result-card {
+        background: white;
+        padding: 24px;
+        border-radius: 16px;
+        border: 1px solid #d2d2d7;
+        margin-bottom: 20px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# 数据状态初始化
+if 'db' not in st.session_state:
+    st.session_state.db = {"主体": [], "风格": [], "部位": [], "材质氛围": []}
+
+# --- 侧边栏：输入对齐 ---
+with st.sidebar:
+    st.markdown("# 录入")
+    user_input = st.text_area("输入样板描述", placeholder="在这里粘贴...", height=150)
+    if st.button("拆解入库", use_container_width=True, type="primary"):
+        if user_input:
             response = client.chat.completions.create(
                 model="deepseek-chat",
-                messages=[{"role": "system", "content": "你是一个纹身专家，请按 格式: 主体:XX|风格:XX|部位:XX|氛围:XX 拆解描述。"},
+                messages=[{"role": "system", "content": "格式:主体:X|风格:X|部位:X|氛围:X"},
                           {"role": "user", "content": user_input}]
             )
             res = response.choices[0].message.content
             for item in res.split("|"):
-                k, v = item.split(":")
-                if "主体" in k: save_word("subjects", v)
-                elif "风格" in k: save_word("styles", v)
-                elif "部位" in k: save_word("placements", v)
-                elif "氛围" in k: save_word("vibes", v)
-        st.sidebar.success("入库成功！页面已刷新。")
+                try:
+                    k, v = item.split(":")
+                    if "主体" in k: st.session_state.db["主体"].append(v)
+                    elif "风格" in k: st.session_state.db["风格"].append(v)
+                    elif "部位" in k: st.session_state.db["部位"].append(v)
+                    elif "氛围" in k: st.session_state.db["材质氛围"].append(v)
+                except: pass
+            st.rerun()
 
-# --- 主界面：文字可视化 ---
-st.title("💎 纹身贴文字资产看板")
-st.markdown("---")
+# --- 主界面：Figma 自动布局展示 ---
+st.title("纹身设计资产库")
+st.write("自动化拆解样板零件，实现设计的精准对齐。")
+st.markdown("<br>", unsafe_allow_html=True)
 
-c1, c2, c3, c4 = st.columns(4)
-boxes = [("subjects", "🐲 主体库", c1), ("styles", "🎨 风格库", c2), 
-         ("placements", "📍 部位库", c3), ("vibes", "✨ 材质/氛围库", c4)]
+# 自动布局展示区
+cols = st.columns(4)
+sections = [("主体", cols[0]), ("风格", cols[1]), ("部位", cols[2]), ("材质氛围", cols[3])]
 
-for file, label, col in boxes:
+for name, col in sections:
     with col:
-        st.subheader(label)
-        words = load_words(file)
-        for w in words:
-            st.markdown(f"""<div style="background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin-bottom: 5px; border-left: 5px solid #ff4b4b;">{w}</div>""", unsafe_allow_html=True)
+        st.markdown(f"### {name}")
+        # 使用 HTML 实现 Flexbox 自动布局
+        items = list(set(st.session_state.db[name]))
+        html_content = '<div class="flex-container">'
+        for i in items:
+            html_content += f'<div class="chip">{i}</div>'
+        html_content += '</div>'
+        st.markdown(html_content, unsafe_allow_html=True)
 
-# --- 底部：批量抽卡 ---
-st.markdown("---")
-st.header("🎲 创意盲盒批量生成")
-count = st.slider("想要一次生成几条创意？", 1, 20, 5) # 默认5条，最高20条
+st.markdown("<br><hr><br>", unsafe_allow_html=True)
 
-if st.button(f"🔥 立即生成 {count} 条爆款组合", type="primary"):
-    s, sty, p, v = load_words("subjects"), load_words("styles"), load_words("placements"), load_words("vibes")
-    if s and sty and p and v:
-        st.balloons()
+# --- 批量生成区 ---
+st.markdown("## 灵感自动生成")
+count = st.select_slider("选择生成数量", options=[1, 3, 5, 10], value=5)
+
+if st.button("生成创意组合", type="secondary"):
+    db = st.session_state.db
+    if all(db.values()):
+        # 结果分三列排列，模仿 Figma Grid
+        grid = st.columns(3)
         for i in range(count):
-            res_s, res_sty, res_p, res_v = random.choice(s), random.choice(sty), random.choice(p), random.choice(v)
-            with st.expander(f"查看第 {i+1} 条：{res_sty}风{res_s}"):
-                st.write(f"**视觉逻辑：** 一个【{res_sty}】风格的【{res_s}】，适合贴在【{res_p}】，质感表现为【{res_v}】")
-                st.code(f"Prompt: {res_s}, {res_sty} tattoo style, {res_v}, on {res_p}, white background, 8k resolution --v 6.0")
+            res = {k: random.choice(v) for k, v in db.items()}
+            with grid[i % 3]:
+                st.markdown(f"""
+                <div class="result-card">
+                    <span style="color:#0071e3; font-size:12px; font-weight:600;">#方案 {i+1}</span>
+                    <h2 style="font-size:20px; margin:10px 0;">{res['风格']} {res['主体']}</h2>
+                    <p style="color:#86868b; font-size:14px;">建议位置：{res['部位']}</p>
+                    <div style="background:#f5f5f7; padding:12px; border-radius:8px; font-family:monospace; font-size:12px;">
+                        {res['主体']}, {res['风格']} tattoo style, {res['材质氛围']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
     else:
-        st.warning("零件还不够，快去左边多录入点样板！")
+        st.info("请先在左侧输入素材进行拆解。")
