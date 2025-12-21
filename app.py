@@ -3,74 +3,85 @@ from openai import OpenAI
 import random
 import requests
 import base64
+import time
 
-# --- 1. 基础配置 ---
+# --- 1. 配置与密钥 ---
 client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO = "losran/tattoo-ai-tool"
 
-st.set_page_config(page_title="Tattoo Studio Pro", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Tattoo AI Workbench", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. CSS 样式 (UI 核心：仿 App 质感) ---
+# --- 2. 深度定制 CSS (实现 SaaS 界面质感) ---
 st.markdown("""
     <style>
-    /* 全局字体与背景优化 */
-    .stApp { background-color: #0e1117; }
+    /* 全局背景深色 */
+    .stApp { background-color: #0e1117; color: #fff; }
     
-    /* 侧边栏计数器 */
-    .counter-box {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 8px;
-        padding: 10px;
-        text-align: center;
-        margin-bottom: 10px;
-        border: 1px solid rgba(255,255,255,0.1);
-    }
-    .counter-num { font-size: 24px; font-weight: bold; color: #4facfe; }
-    .counter-label { font-size: 12px; color: #aaa; }
-
-    /* 标签 Chips */
-    .chip-container { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip {
-        background: #1e2329;
-        color: #e6e6e6;
-        padding: 4px 12px;
-        border-radius: 100px;
-        font-size: 12px;
+    /* 左侧操作区容器 */
+    .workspace-container {
+        background: #161b22;
+        padding: 20px;
+        border-radius: 12px;
         border: 1px solid #30363d;
+        height: 85vh; /* 固定高度，模拟软件界面 */
+        overflow-y: auto;
+    }
+    
+    /* 右侧资产库容器 */
+    .library-container {
+        background: #0d1117;
+        padding: 20px;
+        border-radius: 12px;
+        border-left: 1px solid #30363d;
+        height: 85vh;
+        overflow-y: auto;
+    }
+    
+    /* 标题与LOGO */
+    .app-logo { font-size: 24px; font-weight: 800; color: #4facfe; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    
+    /* 标签样式 (Chip) */
+    .chip-item {
         display: inline-flex;
         align-items: center;
-        margin-bottom: 4px;
-    }
-    .chip-fav { border-color: #ffd700; color: #ffd700; }
-    
-    /* 操作按钮微调 */
-    .small-btn { font-size: 10px; margin-left: 5px; cursor: pointer; color: #666; }
-    .small-btn:hover { color: #ff4b4b; }
-
-    /* 生成结果卡片 */
-    .prompt-card {
-        background: #161b22;
+        background: #1f2428;
         border: 1px solid #30363d;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 15px;
+        color: #c9d1d9;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 13px;
+        margin: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
     }
+    .chip-item:hover { border-color: #4facfe; color: #4facfe; }
+    .chip-fav { border-color: #ffd700 !important; color: #ffd700 !important; }
+    
+    /* 选中态的标签 (用于入库确认) */
+    .chip-selected { background: rgba(79, 172, 254, 0.2); border-color: #4facfe; color: white; }
+    
+    /* 统计数据 */
+    .stat-row { display: flex; gap: 15px; margin-bottom: 20px; }
+    .stat-card { background: #21262d; padding: 10px; border-radius: 8px; flex: 1; text-align: center; border: 1px solid #30363d; }
+    .stat-num { font-size: 18px; font-weight: bold; color: #fff; }
+    .stat-label { font-size: 11px; color: #8b949e; }
+    
+    /* 生成结果卡片 */
+    .prompt-box { background: #000; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 10px; font-family: monospace; color: #0f0; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. 云端同步逻辑 (含收藏功能) ---
-def sync_github(filename, content_list):
+# --- 3. 云端同步核心 (含收藏) ---
+def sync_file(filename, content_list):
     path = f"data/{filename}"
     url = f"https://api.github.com/repos/{REPO}/contents/{path}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-    
     try:
         r = requests.get(url, headers=headers)
         sha = r.json().get('sha')
-        # 清洗并去重
+        # 无论如何都转成字符串并去重
         clean_content = "\n".join(list(set([str(x).strip() for x in content_list if str(x).strip()])))
-        
         payload = {
             "message": f"Update {filename}",
             "content": base64.b64encode(clean_content.encode('utf-8')).decode('utf-8')
@@ -78,18 +89,13 @@ def sync_github(filename, content_list):
         if sha: payload['sha'] = sha
         requests.put(url, headers=headers, json=payload)
     except Exception as e:
-        print(f"Sync Error: {e}")
+        st.error(f"Sync Error: {e}")
 
 # --- 4. 数据加载 ---
-def load_data():
-    files = {
-        "主体": "subjects.txt", "风格": "styles.txt", 
-        "部位": "placements.txt", "氛围": "vibes.txt",
-        "收藏": "favorites.txt"
-    }
+def load_db():
+    files = {"主体": "subjects.txt", "风格": "styles.txt", "部位": "placements.txt", "氛围": "vibes.txt", "收藏": "favorites.txt"}
     db = {k: [] for k in files}
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    
     for cat, fname in files.items():
         try:
             url = f"https://api.github.com/repos/{REPO}/contents/data/{fname}"
@@ -100,191 +106,184 @@ def load_data():
         except: pass
     return db
 
-# 初始化 Session
 if 'db' not in st.session_state:
-    st.session_state.db = load_data()
-if 'preview_tags' not in st.session_state:
-    st.session_state.preview_tags = [] # 用于暂存AI拆解结果
+    st.session_state.db = load_db()
 
-# --- 5. 侧边栏：导航与统计 ---
-with st.sidebar:
-    st.header("🌀 Tattoo AI Pro")
+# 状态管理：用于暂存 AI 拆解后但还没入库的词
+if 'temp_tags' not in st.session_state:
+    st.session_state.temp_tags = [] 
+
+# --- 5. 界面布局 (左右 4:6 分栏) ---
+col_left, col_right = st.columns([4, 6])
+
+# ================================
+# 👉 左侧：操作工作台 (Workspace)
+# ================================
+with col_left:
+    st.markdown('<div class="workspace-container">', unsafe_allow_html=True)
+    st.markdown('<div class="app-logo">🎨 Tattoo AI Pro</div>', unsafe_allow_html=True)
     
-    # 模式切换
-    mode = st.radio("工作模式", ["✨ 智能入库", "🎲 生成提示词"], label_visibility="collapsed")
-    
+    # 顶部导航切换 (Segmented Control 风格)
+    mode = st.radio("功能选择", ["智能入库", "生成提示词"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
-    st.caption("📦 库存概览")
-    
-    # 实时计数器
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown(f'<div class="counter-box"><div class="counter-num">{len(st.session_state.db["主体"])}</div><div class="counter-label">主体</div></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="counter-box"><div class="counter-num">{len(st.session_state.db["风格"])}</div><div class="counter-label">风格</div></div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown(f'<div class="counter-box"><div class="counter-num">{len(st.session_state.db["部位"])}</div><div class="counter-label">部位</div></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="counter-box"><div class="counter-num">{len(st.session_state.db["氛围"])}</div><div class="counter-label">氛围</div></div>', unsafe_allow_html=True)
 
-# --- 6. 核心布局：双栏设计 ---
-col_work, col_lib = st.columns([1, 1]) # 左侧操作，右侧库，比例 1:1
-
-# =======================
-# 右侧：固定资产库 (Library)
-# =======================
-with col_lib:
-    st.subheader("📚 资产仓库")
-    
-    # 筛选工具栏
-    f_col1, f_col2 = st.columns([2, 1])
-    with f_col1:
-        filter_cat = st.selectbox("分类", ["主体", "风格", "部位", "氛围"], label_visibility="collapsed")
-    with f_col2:
-        show_fav = st.checkbox("仅收藏 ⭐")
-
-    # 显示区域
-    st.markdown('<div class="chip-container">', unsafe_allow_html=True)
-    
-    current_list = st.session_state.db[filter_cat]
-    if show_fav:
-        current_list = [i for i in current_list if i in st.session_state.db["收藏"]]
-    
-    # 渲染每一个标签
-    for item in current_list:
-        is_fav = item in st.session_state.db["收藏"]
-        border_color = "#ffd700" if is_fav else "#30363d"
+    # --- 场景 A: 智能入库 ---
+    if mode == "智能入库":
+        st.subheader("📥 样板拆解")
+        raw_text = st.text_area("粘贴描述文本", height=100, placeholder="例如：Old School风格的老虎，满背，霸气...")
         
-        # 布局：标签名 + 收藏按钮 + 删除按钮
-        c_tag, c_act = st.columns([4, 2])
-        with c_tag:
-            st.markdown(f'<span class="chip" style="border-color:{border_color}">{item}</span>', unsafe_allow_html=True)
-        with c_act:
-            # 收藏/取消收藏
-            if st.button("⭐" if not is_fav else "★", key=f"fav_{item}", help="收藏"):
-                if is_fav: st.session_state.db["收藏"].remove(item)
-                else: st.session_state.db["收藏"].append(item)
-                sync_github("favorites.txt", st.session_state.db["收藏"])
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("⚡ 开始拆解", type="primary", use_container_width=True):
+                if raw_text:
+                    with st.spinner("AI 正在分析..."):
+                        # 调用 AI
+                        res = client.chat.completions.create(
+                            model="deepseek-chat",
+                            messages=[{"role": "system", "content": "提取纹身词。格式:分类:内容。分类限:主体,风格,部位,氛围。"}, 
+                                      {"role": "user", "content": raw_text}]
+                        ).choices[0].message.content
+                        
+                        # 解析并存入临时区 (temp_tags)，此时不入库！
+                        st.session_state.temp_tags = []
+                        for p in res.replace("\n","|").split("|"):
+                            if ":" in p:
+                                k, v = p.split(":", 1)
+                                cat = next((x for x in ["主体","风格","部位","氛围"] if x in k), None)
+                                if cat:
+                                    # 默认全选 (checked=True)
+                                    st.session_state.temp_tags.append({"cat": cat, "val": v.strip(), "checked": True})
+        with c2:
+            if st.button("🗑️ 清空输入", use_container_width=True):
+                st.session_state.temp_tags = []
                 st.rerun()
-                
-            # 删除
-            if st.button("×", key=f"del_{item}", help="删除"):
-                st.session_state.db[filter_cat].remove(item)
-                file_map = {"主体": "subjects.txt", "风格": "styles.txt", "部位": "placements.txt", "氛围": "vibes.txt"}
-                sync_github(file_map[filter_cat], st.session_state.db[filter_cat])
-                st.rerun()
-                
-    st.markdown('</div>', unsafe_allow_html=True)
 
-
-# =======================
-# 左侧：动态操作区 (Workspace)
-# =======================
-with col_work:
-    
-    # --- 模式 A: 智能入库 ---
-    if mode == "✨ 智能入库":
-        st.subheader("📥 智能提取入库")
-        
-        # 1. 输入区
-        input_text = st.text_area("输入描述", height=120, placeholder="例如：日式老传统风格，般若面具，配上樱花和流水，适合小腿...")
-        
-        # 2. 拆解按钮
-        if st.button("🔍 开始拆解", type="primary", use_container_width=True):
-            if input_text:
-                with st.spinner("AI 正在分析..."):
-                    prompt = "提取纹身元素。格式:分类:内容。分类限:主体,风格,部位,氛围。内容要短。"
-                    res = client.chat.completions.create(
-                        model="deepseek-chat",
-                        messages=[{"role": "system", "content": prompt}, {"role": "user", "content": input_text}]
-                    ).choices[0].message.content
-                    
-                    # 解析并暂存到 preview_tags
-                    st.session_state.preview_tags = []
-                    for p in res.replace("\n","|").split("|"):
-                        if ":" in p:
-                            k, v = p.split(":", 1)
-                            # 自动归类
-                            cat = next((x for x in ["主体","风格","部位","氛围"] if x in k), None)
-                            if cat:
-                                st.session_state.preview_tags.append({"cat": cat, "val": v.strip()})
-        
-        # 3. 预览与选择区 (如果有拆解结果)
-        if st.session_state.preview_tags:
+        # --- 确认入库区 (这是你最想要的功能) ---
+        if st.session_state.temp_tags:
             st.divider()
-            st.write("📝 **请勾选需要入库的标签：**")
+            st.caption(f"识别到 {len(st.session_state.temp_tags)} 个标签，请勾选确认：")
             
-            # 使用 Streamlit 的 Pills 组件 (如果有) 或 Checkbox
-            selected_indices = []
+            # 使用 checkbox 列表让用户选择
+            updated_tags = []
+            for i, tag in enumerate(st.session_state.temp_tags):
+                # 渲染复选框
+                is_checked = st.checkbox(f"【{tag['cat']}】{tag['val']}", value=tag['checked'], key=f"check_{i}")
+                tag['checked'] = is_checked
+                updated_tags.append(tag)
             
-            # 简单的复选框列表
-            for idx, tag in enumerate(st.session_state.preview_tags):
-                is_checked = st.checkbox(f"【{tag['cat']}】 {tag['val']}", value=True, key=f"chk_{idx}")
-                if is_checked:
-                    selected_indices.append(tag)
+            # 更新状态
+            st.session_state.temp_tags = updated_tags
             
-            col_save, col_clear = st.columns(2)
-            
-            # 4. 确认入库
-            with col_save:
-                if st.button("💾 一键入库选中项", type="primary", use_container_width=True):
-                    count = 0
-                    file_map = {"主体": "subjects.txt", "风格": "styles.txt", "部位": "placements.txt", "氛围": "vibes.txt"}
-                    
-                    for item in selected_indices:
-                        cat = item['cat']
-                        val = item['val']
+            st.write("")
+            if st.button("💾 确认入库 (仅选中项)", type="primary", use_container_width=True):
+                count = 0
+                file_map = {"主体": "subjects.txt", "风格": "styles.txt", "部位": "placements.txt", "氛围": "vibes.txt"}
+                
+                for tag in st.session_state.temp_tags:
+                    if tag['checked']: # 只有勾选的才存
+                        cat = tag['cat']
+                        val = tag['val']
                         if val not in st.session_state.db[cat]:
                             st.session_state.db[cat].append(val)
-                            sync_github(file_map[cat], st.session_state.db[cat])
+                            sync_file(file_map[cat], st.session_state.db[cat])
                             count += 1
-                    
-                    st.success(f"成功入库 {count} 个新标签！")
-                    st.session_state.preview_tags = [] # 清空预览
-                    st.rerun()
-            
-            # 5. 清空
-            with col_clear:
-                if st.button("🗑️ 放弃", use_container_width=True):
-                    st.session_state.preview_tags = []
-                    st.rerun()
+                
+                st.success(f"成功存入 {count} 个新词！")
+                st.session_state.temp_tags = [] # 清空待选区
+                time.sleep(1)
+                st.rerun()
 
-    # --- 模式 B: 生成提示词 ---
-    elif mode == "🎲 生成提示词":
-        st.subheader("🎨 提示词生成")
+    # --- 场景 B: 生成提示词 ---
+    elif mode == "生成提示词":
+        st.subheader("🎨 灵感生成")
         
-        # 1. 参考图上传 (视觉占位，目前仅作展示)
-        st.file_uploader("参考图 (可选，辅助灵感)", type=["png", "jpg"], help="当前版本仅作参考，AI暂不读取图片内容")
+        # 参考图上传 (视觉占位)
+        st.file_uploader("参考图 (可选)", type=["jpg", "png"], help="AI将参考图片构图(开发中)")
         
-        # 2. 额外要求
-        extra_req = st.text_input("额外要求 (可选)", placeholder="例如：黑白线条，极简...")
+        # 数量选择
+        gen_count = st.select_slider("生成数量", options=[1, 3, 5, 10], value=3)
         
-        # 3. 数量滑块
-        gen_count = st.slider("生成数量", 1, 5, 1)
-        
-        # 4. 生成按钮
         if st.button("🚀 立即生成", type="primary", use_container_width=True):
-            if all(len(v) > 0 for v in [st.session_state.db["主体"], st.session_state.db["风格"]]):
-                for i in range(gen_count):
-                    # 随机抽取逻辑
-                    s = random.choice(st.session_state.db["主体"])
-                    sty = random.choice(st.session_state.db["风格"])
-                    p = random.choice(st.session_state.db["部位"]) if st.session_state.db["部位"] else "Skin"
-                    v = random.choice(st.session_state.db["氛围"]) if st.session_state.db["氛围"] else "Artistic"
-                    
-                    # 组合 Prompt
-                    final_prompt = f"/imagine prompt: {s}, {sty} style, {v} vibe, on {p}"
-                    if extra_req:
-                        final_prompt += f", {extra_req}"
-                    final_prompt += " --v 6.0 --ar 2:3"
-                    
-                    # 瀑布流卡片展示
-                    st.markdown(f"""
-                    <div class="prompt-card">
-                        <div style="font-weight:bold; color:#4facfe; margin-bottom:5px;">#{i+1} 创意组合</div>
-                        <div style="font-size:14px; color:#ddd;">{sty} · {s}</div>
-                        <div style="background:#000; padding:8px; border-radius:6px; margin-top:8px; font-family:monospace; font-size:12px; color:#8b949e;">
-                            {final_prompt}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.warning("库存不足，请先去【智能入库】添加素材！")
+            st.divider()
+            for i in range(gen_count):
+                # 随机抽取
+                s = random.choice(st.session_state.db["主体"]) if st.session_state.db["主体"] else "Tattoo"
+                sty = random.choice(st.session_state.db["风格"]) if st.session_state.db["风格"] else "Artistic"
+                p = random.choice(st.session_state.db["部位"]) if st.session_state.db["部位"] else "Body"
+                v = random.choice(st.session_state.db["氛围"]) if st.session_state.db["氛围"] else "Cool"
+                
+                prompt = f"/imagine prompt: {s}, {sty} style, {v} vibe, on {p} --v 6.0"
+                
+                st.markdown(f"""
+                <div class="prompt-box">
+                    <div style="color:#888; font-size:12px; margin-bottom:5px;">方案 #{i+1} ({sty} · {s})</div>
+                    {prompt}
+                </div>
+                """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True) # End Workspace
+
+# ================================
+# 👉 右侧：资产库存 (Library)
+# ================================
+with col_right:
+    st.markdown('<div class="library-container">', unsafe_allow_html=True)
+    
+    # 顶部统计栏
+    st.markdown(f"""
+    <div class="stat-row">
+        <div class="stat-card"><div class="stat-num">{len(st.session_state.db['主体'])}</div><div class="stat-label">主体</div></div>
+        <div class="stat-card"><div class="stat-num">{len(st.session_state.db['风格'])}</div><div class="stat-label">风格</div></div>
+        <div class="stat-card"><div class="stat-num">{len(st.session_state.db['部位'])}</div><div class="stat-label">部位</div></div>
+        <div class="stat-card"><div class="stat-num">{len(st.session_state.db['氛围'])}</div><div class="stat-label">氛围</div></div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 筛选与工具栏
+    c_filter, c_fav = st.columns([3, 1])
+    with c_filter:
+        view_cat = st.selectbox("查看分类", ["主体", "风格", "部位", "氛围"], label_visibility="collapsed")
+    with c_fav:
+        only_fav = st.checkbox("❤️ 仅收藏")
+    
+    st.divider()
+    
+    # 列表展示逻辑
+    items_to_show = st.session_state.db[view_cat]
+    if only_fav:
+        items_to_show = [i for i in items_to_show if i in st.session_state.db["收藏"]]
+    
+    if not items_to_show:
+        st.info("这里还是空的，快去左边进货吧！")
+    
+    # 渲染标签列表 (每一行一个标签+操作按钮)
+    for item in items_to_show:
+        is_fav = item in st.session_state.db["收藏"]
+        
+        # 布局：列1(标签) | 列2(收藏) | 列3(删除)
+        c1, c2, c3 = st.columns([6, 1, 1])
+        
+        with c1:
+            # 标签视觉：如果是收藏的，边框变金黄色
+            fav_class = "chip-fav" if is_fav else ""
+            st.markdown(f'<div class="chip-item {fav_class}">{item}</div>', unsafe_allow_html=True)
+            
+        with c2:
+            # 收藏按钮
+            btn_label = "❤️" if is_fav else "🤍"
+            if st.button(btn_label, key=f"fav_{view_cat}_{item}"):
+                if is_fav: st.session_state.db["收藏"].remove(item)
+                else: st.session_state.db["收藏"].append(item)
+                sync_file("favorites.txt", st.session_state.db["收藏"])
+                st.rerun()
+                
+        with c3:
+            # 删除按钮
+            if st.button("🗑️", key=f"del_{view_cat}_{item}"):
+                st.session_state.db[view_cat].remove(item)
+                # 还要把对应的文件同步更新
+                map_name = {"主体": "subjects.txt", "风格": "styles.txt", "部位": "placements.txt", "氛围": "vibes.txt"}
+                sync_file(map_name[view_cat], st.session_state.db[view_cat])
+                st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True) # End Library
