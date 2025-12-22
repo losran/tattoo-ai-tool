@@ -87,3 +87,21 @@ with col_main:
         current.extend(new_lines)
         save_to_github(GALLERY_FILE, current)
         st.success("已存入 gallery/inspirations.txt！")
+        
+if st.session_state.polished_text:
+            st.success("✅ 润色完成")
+            # 这里的文本框让你能看，也能手动改
+            final_content = st.text_area("最终成果预览：", st.session_state.polished_text, height=200)
+            
+            col_save1, col_save2 = st.columns(2)
+            with col_save1:
+                if st.button("💾 存入云端灵感库", use_container_width=True):
+                    # ...这里保持你之前的保存逻辑...
+                    st.success("已存入 inspirations.txt")
+            
+            with col_save2:
+                # 🚀 关键：一键传送门
+                if st.button("🚀 发送到自动化跑图", type="primary", use_container_width=True):
+                    # 把当前文本框的内容传给自动化模块
+                    st.session_state.auto_input_cache = final_content
+                    st.switch_page("pages/02_automation.py") # 强制跳转
