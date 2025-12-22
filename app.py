@@ -148,26 +148,36 @@ with col_mid:
     # 2. 拆分按钮
     if st.button("🔍 开始 AI 拆分", type="primary"):
         if user_input:
-            with st.spinner("AI 解析中..."):
+            with st.spinner("AI 正在严谨拆解..."):
                 try:
+                    # ⚠️ 这里的 Prompt 进行了升级，强制 AI 闭嘴，只准发标签
                     res = client.chat.completions.create(
                         model="deepseek-chat",
                         messages=[
-                            {"role": "system", "content": "格式:分类:词|分类:词。分类限:主体,风格,部位,氛围。"},
+                            {"role": "system", "content": "你是一个严格的标签转换器。不要说任何废话，不要安慰用户。直接输出格式：主体:词|风格:词|部位:词|氛围:词。多个词用逗号分隔，分类之间用竖线隔开。"},
                             {"role": "user", "content": user_input}
-                        ]
+                        ],
+                        temperature=0.1 # 降低随机性，让 AI 变听话
                     ).choices[0].message.content
                     
-                    # 容错解析
-                    st.session_state.pre_tags = [
-                        {"cat": p.split(":")[0].strip(), "val": p.split(":")[1].strip()} 
-                        for p in res.replace("：", ":").split("|") if ":" in p
-                    ]
+                    # ⚠️ 增加强力过滤逻辑：只识别我们要的四个分类
+                    parsed = []
+                    raw_parts = res.replace("：", ":").replace("\n", "").split("|")
+                    for p in raw_parts:
+                        if ":" in p:
+                            k, v = p.split(":", 1)
+                            key = k.strip()
+                            # 只允许这四个核心词进入预览区
+                            if key in ["主体", "风格", "部位", "氛围"]:
+                                parsed.append({"cat": key, "val": v.strip()})
                     
-                    if st.session_state.pre_tags:
-                        # 成功解析后，增加 ID 从而清空输入框
+                    if parsed:
+                        st.session_state.pre_tags = parsed
                         st.session_state.input_id += 1 
                         st.rerun()
+                    else:
+                        # 如果 AI 还是乱说话，报错提醒，不显示预览
+                        st.warning("AI 返回格式不符，请尝试缩短描述或重试。")
                 except Exception as e:
                     st.error(f"解析失败: {e}")
 
@@ -238,6 +248,7 @@ with col_lib:
         st.info("暂无数据")
     
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
