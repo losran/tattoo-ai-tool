@@ -3,6 +3,73 @@ from openai import OpenAI
 import requests, base64, time
 # --- 关键：必须放在最顶部 ---
 st.set_page_config(layout="wide", page_title="Tattoo Lite")
+# 📍 定位：外观装修区 (插入在 st.set_page_config 下方)
+st.markdown("""
+<style>
+    /* 1. 整体暗色基调 */
+    .stApp {
+        background-color: #0e1117;
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    /* 2. 顶部标题与描述美化 */
+    h1 {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.5px;
+        text-shadow: 0 0 20px rgba(255, 75, 75, 0.2);
+    }
+
+    /* 3. 核心输入框 - 磨砂黑质感 */
+    .stTextArea textarea {
+        background-color: #0d1117 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 12px !important;
+        color: #c9d1d9 !important;
+        transition: border-color 0.3s ease;
+    }
+    .stTextArea textarea:focus {
+        border-color: #ff4b4b !important;
+        box-shadow: 0 0 0 1px #ff4b4b !important;
+    }
+
+    /* 4. 拆分出的“小标签”样式 (这是你第一个功能的核心) */
+    /* 假设你使用了 st.button 或 st.toggle 作为标签选择 */
+    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 20px !important;
+        padding: 4px 15px !important;
+        font-size: 13px !important;
+        color: #8b949e !important;
+    }
+
+    /* 选中入库的标签高亮效果 (红色呼吸边框) */
+    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button[kind="primary"] {
+        border: 1px solid #ff4b4b !important;
+        background-color: #211d1d !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 10px rgba(255, 75, 75, 0.2) !important;
+    }
+
+    /* 5. 底部大按钮 - 一键入库 / 开始拆分 */
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #ff4b4b 0%, #d62f2f 100%) !important;
+        border: none !important;
+        height: 55px !important;
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 15px rgba(255, 75, 75, 0.3) !important;
+    }
+
+    /* 6. 右侧可视化管理区卡片 */
+    [data-testid="stExpander"] {
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 10px !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 # --- 1. 极简配置区 ---
 client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -183,5 +250,6 @@ with c_lib:
                 st.rerun()
     else:
         st.caption("空空如也")
+
 
 
