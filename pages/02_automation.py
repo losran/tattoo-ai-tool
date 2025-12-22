@@ -3,11 +3,21 @@ import json
 import urllib.parse
 import re
 
-st.set_page_config(layout="wide", page_title="Automation")
+st.set_page_config(layout="wide", page_title="Automation Central")
 
-# --- 1. 还原你最强的 MagicPrompt v15.0 全平台适配逻辑 ---
-def generate_v15_script(prompts):
+# --- 1. 核心 JS 模板：带平台适配参数 ---
+def generate_v15_script(prompts, platform_type):
     encoded_data = urllib.parse.quote(json.dumps(prompts))
+    
+    # 针对不同平台微调探测器（你 v15.0 的精髓）
+    selector_logic = ""
+    if platform_type == "ChatGPT":
+        selector_logic = "return document.querySelector('#prompt-textarea');"
+    elif platform_type == "Doubao":
+        selector_logic = "return document.querySelector('div[contenteditable=\"true\"]');"
+    else: # 万能自适应
+        selector_logic = "return document.querySelector('#prompt-textarea, div[contenteditable=\"true\"], textarea, .n-input__textarea-el, [placeholder*=\"输入\"], [placeholder*=\"提问\"]');"
+
     return f"""(async function() {{
     window.kill = false;
     const tasks = JSON.parse(decodeURIComponent("{encoded_data}"));
@@ -20,18 +30,8 @@ def generate_v15_script(prompts):
         el.textContent = text;
     }}
 
-    // v15.0 核心：全能输入框探测器 (含 ChatGPT / Doubao / 镜像站 / Gemini)
-    function getInputBox() {{
-        return document.querySelector(
-            '#prompt-textarea, ' + 
-            'div[contenteditable="true"], ' + 
-            'textarea, ' + 
-            '.n-input__textarea-el, ' + 
-            '[placeholder*="输入"], [placeholder*="提问"]'
-        );
-    }}
+    function getInputBox() {{ {selector_logic} }}
 
-    // v15.0 核心：全能发送按钮探测器 (智能排除停止按钮)
     function getSendBtn() {{
         let btns = Array.from(document.querySelectorAll('button, [role="button"], i'));
         return btns.find(b => {{
@@ -49,12 +49,12 @@ def generate_v15_script(prompts):
         }});
     }}
 
-    showStatus("🤖 纹身大师 v15.0 全能中控启动...");
+    showStatus("🤖 纹身大师 v15.0【{platform_type}】模式启动...");
     for (let i = 0; i < tasks.length; i++) {{
         if (window.kill) break;
-        showStatus("✍️ 正在输入: " + (i+1) + " / " + tasks.length, "#3b82f6");
+        showStatus("✍️ 正在输入方案 " + (i+1) + " / " + tasks.length, "#3b82f6");
         let box = getInputBox();
-        if (!box) {{ showStatus("❌ 找不到输入框 (请点一下对话框)", "#ef4444"); break; }}
+        if (!box) {{ showStatus("❌ 找不到输入框 (请切换平台或点一下输入框)", "#ef4444"); break; }}
         
         box.focus();
         document.execCommand('insertText', false, tasks[i]);
@@ -73,23 +73,31 @@ def generate_v15_script(prompts):
                 wait++;
                 if (wait > 180) break;
             }}
-            showStatus("⏳ 冷却 5s 以防频率过快...", "#f59e0b");
+            showStatus("⏳ 冷却 5s...", "#f59e0b");
             await new Promise(r => setTimeout(r, 5000));
         }}
     }}
     showStatus("🎉 任务全部完成！", "#10b981");
 }})();"""
 
+# --- 2. 页面布局 ---
 st.title("🤖 自动化任务分发中控")
 
-# --- 接收逻辑 ---
-default_text = st.session_state.get('auto_input_cache', "")
-user_input = st.text_area("检查待处理的提示词：", value=default_text, height=350)
+# 平台选择器
+col_opt1, col_opt2 = st.columns([2, 1])
+with col_opt1:
+    target_platform = st.selectbox(
+        "选择目标 AI 平台", 
+        ["万能自适应 (推荐)", "ChatGPT", "Doubao (豆包/镜像站)"],
+        help="不同平台输入框构造不同，手动选择更精准"
+    )
 
-# --- 智能拆分逻辑 (修复 11 个任务的问题) ---
-if st.button("🚀 生成全能适配脚本 (去目标站按F12)", type="primary", use_container_width=True):
-    # 改为按“方案”关键字拆分
-    import re
+# 提示词区域
+default_text = st.session_state.get('auto_input_cache', "")
+user_input = st.text_area("检查待处理的提示词内容：", value=default_text, height=300)
+
+if st.button("🚀 生成全能适配脚本", type="primary", use_container_width=True):
+    # 智能拆分逻辑
     blocks = re.split(r'\*\*方案[一二三四五六七八九十\d]+[:：].*?\*\*', user_input)
     task_list = [b.strip().replace('* ', '').replace('\n', ' ') for b in blocks if len(b.strip()) > 5]
     
@@ -97,15 +105,21 @@ if st.button("🚀 生成全能适配脚本 (去目标站按F12)", type="primary
         st.divider()
         st.subheader(f"📦 待处理任务: {len(task_list)} 条")
         
-        # 指引
-        st.warning("👉 **复制后操作步骤**：\\n1. 点击下方代码框右上角复制 \\n2. 打开绘图站(ChatGPT/豆包)按 **F12** \\n3. 找到 **Console (控制台)** 粘贴并回车。")
+        # --- 重点：F12 傻瓜式指引卡片 ---
+        st.success("✅ 脚本已生成！请按以下步骤操作：")
+        guide_col1, guide_col2, guide_col3 = st.columns(3)
+        guide_col1.metric("第一步", "点击右上角复制")
+        guide_col2.metric("第二步", "目标站按 F12")
+        guide_col3.metric("第三步", "粘贴并回车")
         
-        # 脚本展示
-        js_code = generate_v15_script(task_list)
+        # 脚本代码
+        js_code = generate_v15_script(task_list, target_platform)
         st.code(js_code, language="javascript")
+        
+        st.info("💡 提示：如果发现脚本不输入，请尝试切换平台重新生成。")
     else:
-        st.error("无法识别内容，请确保包含 '**方案一：**' 字样")
+        st.error("无法识别内容，请确保文本包含 '**方案一：**' 字样")
 
-if st.button("🗑️ 清空当前任务流"):
+if st.button("🗑️ 清空当前任务"):
     st.session_state.auto_input_cache = ""
     st.rerun()
