@@ -48,67 +48,54 @@ col_main, col_gallery = st.columns([5, 2])
 # --- 右侧：资产预览 (素材仓库) ---
 with col_gallery:
     st.subheader("📦 仓库管理")
-    
-    # 模式切换
-    mode = st.radio("模式", ["素材仓库", "灵感成品"], horizontal=True)
+    mode = st.radio("预览模式", ["素材仓库", "灵感成品"], horizontal=True)
     
     if mode == "素材仓库":
-        # 1. 选择分类
-        cat = st.selectbox("选择要管理的分类", list(WAREHOUSE.keys()))
-        file_path = WAREHOUSE[cat]
+        cat = st.selectbox("当前分类", list(WAREHOUSE.keys()))
+        words = get_github_data(WAREHOUSE[cat])
         
-        # 2. 读取当前分类的所有单词
-        all_words = get_github_data(file_path)
-        
-        if all_words:
-            # 3. 多选框：选择想要删除的标签
-            to_delete = st.multiselect(
-                f"选择要删除的 {cat} (可多选)", 
-                options=all_words,
-                help="勾选后点击下方删除按钮"
-            )
+        if words:
+            selected_to_delete = []
+            st.caption(f"当前共有 {len(words)} 个标签，勾选即可管理：")
             
-            # 4. 删除按钮
-            if to_delete:
-                if st.button(f"🗑️ 确认删除这 {len(to_delete)} 个标签", type="primary", use_container_width=True):
-                    # 过滤掉被选中的词
-                    new_words = [w for w in all_words if w not in to_delete]
-                    
-                    with st.spinner("正在同步至 GitHub..."):
-                        if save_to_github(file_path, new_words):
-                            st.success("删除成功！")
-                            time.sleep(1) # 停顿一下让用户看清提示
-                            st.rerun() # 强制刷新页面显示新列表
-                        else:
-                            st.error("同步失败，请检查网络")
+            # --- 核心改进：列表勾选模式 ---
+            with st.container(height=500, border=True):
+                for w in words:
+                    # 使用唯一的 key 防止冲突
+                    if st.checkbox(f" {w}", key=f"manage_{cat}_{w}"):
+                        selected_to_delete.append(w)
             
-            st.divider()
-            
-            # 5. 列表展示（方便复制或查看）
-            st.caption(f"当前共有 {len(all_words)} 个标签：")
-            with st.container(height=400):
-                for w in all_words:
-                    st.text(f"• {w}")
+            # --- 只有选中了单词，才在下面出现删除按钮 ---
+            if selected_to_delete:
+                st.divider()
+                st.warning(f"已选中 {len(selected_to_delete)} 个标签")
+                if st.button(f"🗑️ 确认批量删除所选", type="primary", use_container_width=True):
+                    remaining = [w for w in words if w not in selected_to_delete]
+                    with st.spinner("正在同步云端..."):
+                        if save_to_github(WAREHOUSE[cat], remaining):
+                            st.success("清理完成！")
+                            time.sleep(1)
+                            st.rerun()
         else:
-            st.info("该分类暂无数据")
+            st.info("分类下暂无素材")
             
     else:
-        # 灵感成品管理逻辑 (类似)
+        # 灵感成品同样改为勾选删除逻辑
         insps = get_github_data(GALLERY_FILE)
         if insps:
-            to_delete_insp = st.multiselect("选择要删除的灵感", options=insps)
-            if to_delete_insp and st.button("🗑️ 确认删除选中的灵感", type="primary"):
-                new_insps = [i for i in insps if i not in to_delete_insp]
-                if save_to_github(GALLERY_FILE, new_insps):
-                    st.success("已清理")
-                    st.rerun()
-            
-            with st.container(height=500):
+            selected_insps = []
+            with st.container(height=500, border=True):
                 for i in insps:
-                    st.write(f"· {i}")
+                    if st.checkbox(i, key=f"del_insp_{hash(i)}"):
+                        selected_insps.append(i)
+            
+            if selected_insps:
+                if st.button(f"🗑️ 批量删除灵感 ({len(selected_insps)})", type="primary", use_container_width=True):
+                    remaining_insp = [i for i in insps if i not in selected_insps]
+                    save_to_github(GALLERY_FILE, remaining_insp)
+                    st.rerun()
         else:
             st.caption("灵感库为空")
-
 # --- 左侧：核心生成区 ---
 with col_main:
     st.info("💡 逻辑：从右侧仓库随机抽取标签组合，再由 DeepSeek 进行艺术化润色。")
