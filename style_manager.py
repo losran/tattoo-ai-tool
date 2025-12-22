@@ -4,50 +4,57 @@ import streamlit as st
 def apply_pro_style():
     st.markdown("""
     <style>
-        /* 1. 全局背景与布局 */
+        /* 1. 📍 物理抹除顶部所有无用图标 (Share, Star, GitHub等) */
+        [data-testid="stHeader"] {
+            background-color: rgba(0,0,0,0) !important;
+        }
+        [data-testid="stHeader"] > div:first-child {
+            display: none !important; /* 彻底隐藏那一排小图标 */
+        }
+
+        /* 2. 锁定全局背景 */
         .stApp { background-color: #0f1014; }
-        
-        /* 2. 📍 右侧伪装侧边栏：让它和左边长得一模一样 */
+
+        /* 3. 放大左侧导航文字 */
+        [data-testid="stSidebarNav"] ul li div p {
+            font-size: 20px !important; 
+            font-weight: 600 !important;
+            color: #c9d1d9 !important;
+        }
+
+        /* 4. 📍 右侧伪装栏：强制置顶对齐，无视顶部间距 */
         [data-testid="column"]:nth-child(2) {
             background-color: #16171d !important;
             border-left: 1px solid #262730 !important;
-            padding: 20px !important;
+            padding: 20px 15px !important;
             height: 100vh !important;
             position: fixed !important;
             right: 0;
             top: 0;
+            z-index: 100;
         }
 
-        /* 3. 📍 极简组合标签：文字和叉号在同一个框里 */
+        /* 5. 📍 组合标签：文字和叉号合并为一个视觉整体 */
         .stButton > button {
             border: 1px solid #262730 !important;
             background: #1a1b23 !important;
-            border-radius: 4px !important;
             color: #c9d1d9 !important;
-            transition: 0.2s;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             width: 100% !important;
-            padding: 4px 10px !important;
+            padding: 5px 12px !important;
             text-align: left !important;
+            border-radius: 4px !important;
         }
         .stButton > button:hover {
             border-color: #ff4b4b !important;
-            color: #ffffff !important;
         }
 
-        /* 4. 让左侧收起后的按钮保持可见 */
-        header[data-testid="stHeader"] { background: transparent !important; }
-
-        /* 5. 底部统计状态样式 */
+        /* 侧边栏底部统计 */
         .metric-footer { border-top: 1px solid #262730; padding-top: 15px; margin-top: 20px; }
-        .metric-item { display: flex; justify-content: space-between; font-size: 13px; color: #8b949e; margin-bottom: 6px; }
+        .metric-item { display: flex; justify-content: space-between; font-size: 13px; color: #8b949e; }
     </style>
     """, unsafe_allow_html=True)
 
 def render_unified_sidebar(counts_dict):
-    """常驻侧边栏：砍掉没意义的文字，只留统计"""
     with st.sidebar:
         st.markdown("<br>" * 10, unsafe_allow_html=True)
         st.markdown('<div class="metric-footer">', unsafe_allow_html=True)
