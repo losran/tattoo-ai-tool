@@ -40,10 +40,14 @@ st.set_page_config(layout="wide", page_title="Creative Engine")
 st.title("🎨 创意引擎")
 
 # 初始化状态
+# 📍 定位：修正初始化逻辑，确保 manual_editor 是文字不是列表
 for key in ['selected_prompts', 'generated_cache', 'polished_text', 'manual_editor']:
     if key not in st.session_state:
-        st.session_state[key] = [] if 'text' not in key else ""
-
+        # 只要名字里带 text 或 editor，就给空字符串 ""
+        if 'text' in key or 'editor' in key:
+            st.session_state[key] = ""
+        else:
+            st.session_state[key] = []
 col_main, col_gallery = st.columns([5, 2.5])
 
 # --- 右侧：仓库管理 ---
