@@ -2,66 +2,84 @@ import streamlit as st
 import time
 from style_manager import apply_pro_style, render_unified_sidebar
 
-# 基础配置
-st.set_page_config(layout="wide", page_title="Alien Mood Central")
+# --- 1. 记忆初始化 (新手必看) ---
+if "input_val" not in st.session_state:
+    st.session_state.input_val = ""  # 存储输入框文字
+if "show_warehouse" not in st.session_state:
+    st.session_state.show_warehouse = True  # 存储仓库显隐状态
+
+# --- 2. 页面配置与皮肤注入 ---
+st.set_page_config(layout="wide", page_title="Alien Mood | 智能入库")
 apply_pro_style()
 
-# 常驻统计数据
+# 统一侧边栏统计
 counts = {"主体": 28, "风格": 28, "动作": 15, "氛围": 12}
 render_unified_sidebar(counts)
 
-# 模拟数据
-WAREHOUSE = {"Subject": ["日式 old school", "小圆点", "藤蔓", "郁金香", "雏菊"]}
+# --- 3. 布局逻辑：受收起开关控制 ---
+if st.session_state.show_warehouse:
+    col_main, col_right = st.columns([5, 1.8])
+else:
+    col_main = st.container()
 
-# --- 布局：中间操作(5) + 右侧固定仓库(2) ---
-col_main, col_right = st.columns([5, 2])
-
-# 1. 中间主操作区 (可滚动)
+# --- 4. 中间主操作区 ---
 with col_main:
-    st.title("智能入库")
-    
-    # 这里的输入框现在是核心焦点
-    if "input_val" not in st.session_state:
-        st.session_state.input_val = ""
-        
-    user_input = st.text_area(
-        "输入或点选标签：", 
-        value=st.session_state.input_val,
-        height=450, 
-        key="main_editor"
+    # 顶部工具栏
+    c_title, c_toggle = st.columns([5, 1])
+    with c_title:
+        st.title("⚡ 智能入库")
+    with c_toggle:
+        toggle_label = "收起仓库 ⮕" if st.session_state.show_warehouse else "⬅ 展开仓库"
+        if st.button(toggle_label):
+            st.session_state.show_warehouse = not st.session_state.show_warehouse
+            st.rerun()
+
+    # 输入框：绑定 session_state
+    # 这里的关键是 value=st.session_state.input_val
+    user_text = st.text_area(
+        "在此输入文案或从右侧点选标签：", 
+        value=st.session_state.input_val, 
+        height=450,
+        key="main_editor_area"
     )
-    # 实时更新状态，方便右侧按钮读取
-    st.session_state.input_val = user_input
+    # 实时保存手打的内容到记忆中
+    st.session_state.input_val = user_text
 
-    if st.button("🚀 开始拆解", type="primary", use_container_width=True):
-        st.toast("AI 正在工作...")
+    if st.button("🚀 开始 AI 智能拆解", type="primary", use_container_width=True):
+        with st.status("🛸 正在拆解标签结构...", expanded=False):
+            st.write("识别主体...")
+            time.sleep(0.5)
+            st.write("同步数据库...")
+            time.sleep(0.5)
+        st.toast("拆解完成！")
 
-# 2. 右侧固定栏：仓库管理
-with col_right:
-    # 模拟“向右收起”：用 Streamlit 的折叠容器实现最稳妥
-    with st.expander("📦 仓库管理 (点击展开/收起)", expanded=True):
-        cat = st.selectbox("分类", list(WAREHOUSE.keys()), label_visibility="collapsed")
-        words = WAREHOUSE.get(cat, [])
+# --- 5. 右侧仓库区 (仅在展开时显示) ---
+if st.session_state.show_warehouse:
+    with col_right:
+        st.markdown("### 📦 仓库管理")
+        cat = st.selectbox("分类", ["Subject", "Style", "Action"], label_visibility="collapsed")
         
-        st.divider()
+        # 模拟单词数据
+        words = ["日式 old school", "小圆点", "藤蔓", "郁金香", "雏菊"]
         
-        # 极简交互列表
+        st.write("")
+        st.caption("点字导入，点 × 删除")
+        
+        # 极简标签列表交互
         for idx, w in enumerate(words):
-            c1, c2 = st.columns([5, 1])
-            
-            # 📍 点文字：直接加入输入框
-            with c1:
+            c_word, c_x = st.columns([5, 1])
+            with c_word:
+                # 📍 点击文字：直接追加到记忆里并刷新页面
                 if st.button(f" {w}", key=f"add_{idx}", use_container_width=True):
                     if st.session_state.input_val:
                         st.session_state.input_val += f" {w}"
                     else:
                         st.session_state.input_val = w
                     st.rerun()
-            
-            # 📍 点叉号：直接删除
-            with c2:
-                if st.button("✕", key=f"del_{idx}", use_container_width=True):
-                    # 这里放你原本的删除逻辑
-                    st.toast(f"已清理: {w}")
+            with c_x:
+                # 📍 点击叉号：执行删除逻辑
+                if st.button("×", key=f"del_{idx}"):
+                    st.toast(f"已从库中清理: {w}")
+                    # 这里后续添加真正的 GitHub 删除代码即可
                     time.sleep(0.3)
                     st.rerun()
