@@ -1,10 +1,11 @@
 import streamlit as st
 import json
 import urllib.parse
+import re
 
 st.set_page_config(layout="wide", page_title="Auto Task")
 
-# --- 1. JS 脚本模板 (你的 v15.0 顶级逻辑) ---
+# --- 1. JS 脚本模板 (保持你最爱的 v15.0 逻辑) ---
 def generate_magic_code(prompts):
     encoded = urllib.parse.quote(json.dumps(prompts))
     return f"""(async function() {{
@@ -42,28 +43,35 @@ def generate_magic_code(prompts):
 # --- 2. UI 界面 ---
 st.title("🤖 自动化任务分发中控")
 
-# 优先级：如果有来自第二功能的缓存就用它，否则为空
 default_text = st.session_state.get('auto_input_cache', "")
-
-# 唯一的核心输入框 (既支持搬运，也支持传送)
-user_input = st.text_area("在此粘贴或编辑提示词（每行一条）：", value=default_text, height=300, placeholder="提示词1\n提示词2...")
+user_input = st.text_area("在此粘贴或编辑提示词：", value=default_text, height=350)
 
 if st.button("🚀 生成全能脚本 (F12)", type="primary", use_container_width=True):
-    # 清洗数据
-    task_list = [l.split('：')[-1].strip() for l in user_input.split('\n') if l.strip()]
+    # 【核心逻辑升级】：不再按行切分，而是识别“方案”块
+    # 使用正则表达式匹配 **方案一**、**方案1** 等字样作为分割点
+    blocks = re.split(r'\*\*方案[一二三四五六七八九十\d]+[:：].*?\*\*', user_input)
+    
+    # 清洗并提取有效内容
+    task_list = []
+    for block in blocks:
+        # 去掉星号、多余空格和多余换行
+        content = block.strip().replace('* ', '').replace('\n', ' ')
+        if len(content) > 5: # 过滤掉太短的干扰项
+            task_list.append(content)
     
     if task_list:
         st.divider()
         st.subheader(f"📦 待处理任务: {len(task_list)} 条")
+        with st.expander("检查任务内容"):
+            for i, t in enumerate(task_list):
+                st.write(f"任务 {i+1}: {t}")
         
-        # 生成并显示 JS
         final_js = generate_magic_code(task_list)
         st.code(final_js, language="javascript")
-        
         st.info("💡 操作指引：点击上方代码框右上角复制，去目标站 F12 -> Console 粘贴回车。")
     else:
-        st.error("⚠️ 框里没东西，生成个寂寞啊哥们！")
+        st.error("⚠️ 识别不到有效方案内容，请检查格式是否包含 '**方案x：**'")
 
-if st.button("🗑️ 清空全部内容"):
+if st.button("🗑️ 清空内容"):
     st.session_state.auto_input_cache = ""
     st.rerun()
