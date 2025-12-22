@@ -78,28 +78,50 @@ if st.button("🔍 开始 AI 拆分", type="primary", use_container_width=True):
                 st.error(f"出错：{e}")
 
 # 模块二：预览与入库
+# --- 模块二：大爆炸预览区 ---
 if st.session_state.pre_tags:
     st.write("---")
-    st.subheader("第二步：确认入库")
+    st.subheader("💥 灵感大爆炸")
+    st.caption("点击勾选你想要保存的关键词碎片：")
     
+    # 建立一个容器，让标签排布更紧凑
     save_list = []
-    for i, tag in enumerate(st.session_state.pre_tags):
-        if st.checkbox(f"【{tag['cat']}】{tag['val']}", value=True, key=f"chk_{i}"):
-            save_list.append(tag)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🚀 一键入库", type="primary", use_container_width=True):
-            f_map = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}
-            for t in save_list:
-                if t['val'] not in st.session_state.db[t['cat']]:
-                    st.session_state.db[t['cat']].append(t['val'])
-                    sync_git(f_map[t['cat']], st.session_state.db[t['cat']])
-            st.session_state.pre_tags = []
-            st.success("已成功同步！")
-            st.rerun()
-    with col2:
-        if st.button("🧹 放弃清空", use_container_width=True):
+    # [1] 按照分类排放碎块
+    for cat_name in ["主体", "风格", "部位", "氛围"]:
+        # 过滤出属于当前分类的词
+        cat_words = [t for t in st.session_state.pre_tags if t['cat'] == cat_name]
+        
+        if cat_words:
+            st.markdown(f"**📍 {cat_name}**")
+            # 创建多列，让词条像碎片一样横向炸开
+            cols = st.columns(4) 
+            for idx, tag in enumerate(cat_words):
+                # 每一个词都是一个独立的 Checkbox
+                with cols[idx % 4]:
+                    if st.checkbox(tag['val'], value=True, key=f"boom_{cat_name}_{idx}"):
+                        save_list.append(tag)
+            st.write("") # 间距
+
+    # [2] 操作按钮组
+    st.write("")
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        if st.button("🚀 将勾选碎片存入仓库", type="primary", use_container_width=True):
+            if save_list:
+                f_map = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}
+                for t in save_list:
+                    if t['val'] not in st.session_state.db[t['cat']]:
+                        st.session_state.db[t['cat']].append(t['val'])
+                        sync_git(f_map[t['cat']], st.session_state.db[t['cat']])
+                st.session_state.pre_tags = [] # 清空大爆炸现场
+                st.success(f"成功录入 {len(save_list)} 个新素材！")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.warning("请至少勾选一个词条")
+    with c2:
+        if st.button("🧹 扫走碎片", use_container_width=True):
             st.session_state.pre_tags = []
             st.rerun()
 
@@ -112,3 +134,4 @@ if items:
     st.write("、".join(items)) # 用顿号隔开显示
 else:
     st.caption("暂无数据")
+
