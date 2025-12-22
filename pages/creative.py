@@ -2,19 +2,41 @@ import streamlit as st
 import requests, base64, random, time
 from openai import OpenAI
 
-# --- 1. 基础配置 ---
+# --- 1. 配置 (保持与 app.py 一致) ---
 client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-HF_TOKEN = st.secrets.get("HF_TOKEN", "")
+HF_TOKEN = st.secrets["HF_TOKEN"]
 REPO = "losran/tattoo-ai-tool"
-# 增加了 Inspiration 分类用于存储灵感
 FILES = {
     "Subject": "subjects.txt", "Action": "actions.txt", 
     "Style": "styles.txt", "Mood": "moods.txt", "Usage": "usage.txt",
     "灵感库": "inspirations.txt"
 }
 
-# --- 2. 工具函数 ---
+# --- 2. 工具函数 (修复版) ---
+def get_image_desc(image_bytes):
+    # 换成目前最稳定的官方 BLIP 模型
+    API_URL = "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large"
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    
+    for i in range(3): # 尝试 3 次
+        try:
+            response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=20)
+            if response.status_code == 200:
+                res_json = response.json()
+                return res_json[0].get('generated_text')
+            elif response.status_code == 503:
+                st.warning(f"⏳ AI 正在排队起床，请等 10 秒... ({i+1}/3)")
+                time.sleep(10)
+                continue
+            else:
+                st.error(f"抱脸接口返回代码: {response.status_code}")
+                return None
+        except Exception as e:
+            st.error(f"连接超时，正在重试... {str(e)}")
+            time.sleep(2)
+    return None
+
 def get_data(filename):
     url = f"https://api.github.com/repos/{REPO}/contents/data/{filename}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -27,52 +49,9 @@ def sync_data(filename, data_list):
     url = f"https://api.github.com/repos/{REPO}/contents/data/{filename}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     get_resp = requests.get(url, headers=headers).json()
-    content_str = "\n".join(list(set(data_list))) # 灵感库不强制排序，保持新鲜感
+    content_str = "\n".join(list(set(data_list)))
     b64_content = base64.b64encode(content_str.encode()).decode()
-    requests.put(url, headers=headers, json={
-        "message": "save inspiration", "content": b64_content, "sha": get_resp.get('sha')
-    })
-
-def get_image_desc(image_bytes):
-    """
-    更换了更稳定的模型，并增加了详细的调试信息
-    """
-    # 更换模型为 nlpconnect/vit-gpt2-image-captioning (非常稳定)
-    API_URL = "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning"
-    
-    # 检查 Token 是否存在
-    if not HF_TOKEN:
-        st.error("❌ 错误：未检测到 HF_TOKEN。请检查 Streamlit Secrets 设置！")
-        return None
-        
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    
-    try:
-        for i in range(5):
-            response = requests.post(API_URL, headers=headers, data=image_bytes)
-            
-            if response.status_code == 200:
-                result = response.json()
-                # 兼容不同模型的返回格式
-                if isinstance(result, list): return result[0].get('generated_text')
-                return result.get('generated_text')
-            
-            elif response.status_code == 503:
-                st.warning(f"⏳ AI 模型正在初始化，请稍等... ({i+1}/5)")
-                time.sleep(10)
-                continue
-            
-            else:
-                # 如果还是报错，直接把错误码显示出来方便排查
-                st.error(f"抱脸接口报错: {response.status_code}")
-                # 这里的调试信息能帮我们确认是不是 Token 没填对
-                if "410" in str(response.status_code):
-                    st.info("💡 提示：410 错误通常是接口地址变动。已尝试更换模型。")
-                return None
-    except Exception as e:
-        st.error(f"网络异常: {str(e)}")
-        return None
-    return "解析超时"
+    requests.put(url, headers=headers, json={"message": "save inspiration", "content": b64_content, "sha": get_resp.get('sha')})
 
 def polish_prompts_chinese(prompt_list):
     combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(prompt_list)])
@@ -100,26 +79,32 @@ with col_right:
     words = get_data(FILES[cat_view])
     with st.container(height=600):
         if words:
-            for w in words: st.text(w) # 灵感库文字长，用 text 显示更清晰
+            for w in words: st.text(w)
         else: st.caption("暂无数据")
 
 with col_main:
-    # 图片反推
-    with st.expander("📸 参考图提取"):
+    # --- 图片反推区 ---
+    with st.expander("📸 参考图提取", expanded=True):
         up_file = st.file_uploader("上传图", type=["jpg", "png", "jpeg"])
         if up_file:
-            if st.button("🔍 开始反推"):
-                with st.spinner("AI看图中..."):
+            st.image(up_file, width=200)
+            if st.button("🔍 开始反推标签", use_container_width=True):
+                with st.spinner("AI 正在解析图片，这可能需要一会儿..."):
                     desc = get_image_desc(up_file.getvalue())
                     if desc:
+                        # 核心修正：如果拿到了英文描述，用 DeepSeek 拆解它
                         res = client.chat.completions.create(
                             model="deepseek-chat",
-                            messages=[{"role": "user", "content": f"拆解为五维标签(Subject|Action|Style|Mood|Usage)：{desc}"}]
+                            messages=[{"role": "user", "content": f"请把这段英文描述拆解为 Subject:词|Action:词|Style:词|Mood:词|Usage:词。描述是：{desc}"}]
                         ).choices[0].message.content
                         st.session_state.img_tags = res
-                st.info(f"提取结果：{st.session_state.img_tags}")
+                        st.success(f"解析成功：{res}")
+                    else:
+                        st.error("解析失败，可能是抱脸服务器开小差了，请再试一次。")
 
-    # 生成逻辑
+    st.divider()
+    
+    # --- 生成区 ---
     num_gen = st.slider("生成数量", 1, 10, 3)
     if st.button("🔥 一键生成", type="primary", use_container_width=True):
         st.session_state.generated_cache = []
@@ -127,10 +112,12 @@ with col_main:
         for i in range(num_gen):
             sample = [random.choice(db_all[cat]) if db_all.get(cat) else " " for cat in ["Subject", "Action", "Style", "Mood", "Usage"]]
             base_p = " + ".join(sample)
-            final_p = f"参考图({st.session_state.img_tags}) + {base_p}" if st.session_state.img_tags else base_p
+            # 融合图片标签
+            final_p = f"参考图特征({st.session_state.img_tags}) + {base_p}" if st.session_state.img_tags else base_p
             st.session_state.generated_cache.append(final_p)
         st.rerun()
 
+    # --- 方案库展示 ---
     if st.session_state.generated_cache:
         cols = st.columns(2)
         for idx, prompt in enumerate(st.session_state.generated_cache):
@@ -144,26 +131,18 @@ with col_main:
                         else: st.session_state.selected_prompts.append(prompt)
                         st.rerun()
 
-    # 汇总与保存
+    # --- 汇总与润色 ---
     if st.session_state.selected_prompts:
         st.divider()
-        c1, c2 = st.columns(2)
-        if c1.button("✨ DeepSeek 润色", type="primary", use_container_width=True):
-            with st.spinner("构思中..."):
+        if st.button("✨ DeepSeek 艺术润色", type="primary", use_container_width=True):
+            with st.spinner("DeepSeek 正在构思..."):
                 st.session_state.polished_text = polish_prompts_chinese(st.session_state.selected_prompts)
-        if c2.button("🗑️ 清空", use_container_width=True):
-            st.session_state.selected_prompts = []; st.session_state.polished_text = ""; st.rerun()
-
+        
         if st.session_state.polished_text:
-            st.success("✅ 润色完成")
-            txt_area = st.text_area("最终成果：", st.session_state.polished_text, height=200)
-            
+            st.text_area("最终成果：", st.session_state.polished_text, height=200)
             if st.button("💾 存入云端灵感库", use_container_width=True):
-                with st.spinner("正在同步至 GitHub..."):
-                    current_insp = get_data(FILES["灵感库"])
-                    # 按行拆分润色结果并存入
-                    new_lines = [line.strip() for line in st.session_state.polished_text.split('\n') if line.strip()]
-                    current_insp.extend(new_lines)
-                    sync_data(FILES["灵感库"], current_insp)
-                    st.balloons()
-                    st.success("已永久存入灵感库！换台电脑也能看。")
+                current_insp = get_data(FILES["灵感库"])
+                new_lines = [line.strip() for line in st.session_state.polished_text.split('\n') if line.strip()]
+                current_insp.extend(new_lines)
+                sync_data(FILES["灵感库"], current_insp)
+                st.balloons()
