@@ -1,16 +1,16 @@
 import streamlit as st
 import time
-# 📍 确保你已经把 style_manager.py 覆盖成了我刚才发的那个版本
-from style_manager import apply_pro_style
+# 📍 确保你使用的是我之前发的那套 style_manager.py
+from style_manager import apply_global_frame, render_global_warehouse
 
-# --- 1. 记忆初始化与皮肤注入 ---
+# --- 1. 记忆初始化与外壳注入 ---
 if "input_val" not in st.session_state: st.session_state.input_val = ""
-if "is_open" not in st.session_state: st.session_state.is_open = True
 
 st.set_page_config(layout="wide", page_title="Alien Mood | 自动化工具")
-apply_pro_style() # 注入全站皮肤
+apply_global_frame()       # 刷墙（固定左、中、右三屏层级）
+render_global_warehouse()  # 立柜（右侧镜像资产库）
 
-# --- 2. 侧边栏：常驻统计状态 (20px 大字导航) ---
+# --- 2. 左侧侧边栏：常驻统计 (20px 大字) ---
 with st.sidebar:
     st.markdown("<br>" * 10, unsafe_allow_html=True)
     st.markdown('<div class="metric-footer">', unsafe_allow_html=True)
@@ -20,75 +20,43 @@ with st.sidebar:
         st.markdown(f'<div class="metric-item"><span>{label}:</span><b>{val}</b></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 3. 右上角开关：镜像闭合逻辑 ---
-btn_col1, btn_col2 = st.columns([12, 1])
-with btn_col2:
-    icon = "❯" if st.session_state.is_open else "❮ 仓库"
-    if st.button(icon, key="auto_sidebar_toggle"):
-        st.session_state.is_open = not st.session_state.is_open
-        st.rerun()
+# --- 3. 核心业务区：自动化任务流 ---
+# 📍 必须包在 main-slot 里，确保它在左右两堵“墙”中间滚动
+st.markdown('<div class="main-slot">', unsafe_allow_html=True)
+st.title("⚡ 自动化工具")
 
-# --- 4. 核心布局逻辑 ---
-if st.session_state.is_open:
-    col_main, col_right = st.columns([5, 1.8])
-else:
-    col_main = st.container()
+# 文案处理区：绑定全局记忆
+st.session_state.input_val = st.text_area(
+    "待处理内容 / 脚本指令：", 
+    value=st.session_state.input_val, 
+    height=300, 
+    label_visibility="collapsed"
+)
 
-# --- 5. 中间主操作区：自动化任务流 ---
-with col_main:
-    st.title("⚡ 自动化工具")
-    
-    # 输入区：绑定全局记忆，支持仓库点选导入
-    st.session_state.input_val = st.text_area(
-        "自动化处理文案 / 脚本输入：", 
-        value=st.session_state.input_val, 
-        height=300,
-        label_visibility="collapsed"
-    )
+st.write("")
+st.markdown("#### ⚙️ 任务链配置")
 
-    st.write("")
-    st.markdown("#### ⚙️ 任务配置")
-    
-    # 复原你之前的自动化功能开关
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        deduplicate = st.toggle("自动去重标签", value=True)
-    with c2:
-        to_english = st.toggle("自动翻译为 Prompt", value=False)
-    with c3:
-        auto_sync = st.toggle("执行后同步云端", value=True)
+# 复原你之前的自动化功能逻辑
+c1, c2, c3 = st.columns(3)
+with c1:
+    deduplicate = st.toggle("自动清理重复标签", value=True)
+with c2:
+    to_english = st.toggle("一键转为 Midjourney Prompt", value=False)
+with c3:
+    auto_sync = st.toggle("处理后自动同步 GitHub", value=True)
 
-    # 执行按钮
-    if st.button("🚀 执行批量自动化处理", type="primary", use_container_width=True):
-        with st.status("正在运行脚本任务流...") as s:
-            st.write("清理重复项...")
-            time.sleep(0.6)
-            if to_english:
-                st.write("调用翻译接口...")
-                time.sleep(0.8)
-            st.write("同步 GitHub 仓库状态...")
-            time.sleep(0.5)
-            s.update(label="全部自动化任务已完成！", state="complete")
-        st.balloons()
+# 底部执行按钮
+st.write("")
+if st.button("🚀 开始批量自动化处理", type="primary", use_container_width=True):
+    with st.status("正在调度自动化脚本...") as s:
+        st.write("扫描重复词汇...")
+        time.sleep(0.5)
+        if to_english:
+            st.write("调用 AI 翻译引擎...")
+            time.sleep(0.8)
+        st.write("准备 GitHub 提交...")
+        time.sleep(0.5)
+        s.update(label="自动化处理已圆满完成！", state="complete")
+    st.balloons() # 庆祝一下
 
-# --- 6. 右侧固定仓库 (全站统一组件) ---
-if st.session_state.is_open:
-    with col_right:
-        st.markdown("### 📦 资产仓库")
-        cat = st.selectbox("分类查看", ["Subject", "Action", "Style"], label_visibility="collapsed")
-        
-        # 模拟数据
-        words = ["机械臂", "赛博朋克", "霓虹灯", "雨夜", "24x24点阵"]
-        
-        st.write("")
-        for idx, w in enumerate(words):
-            # 文字和叉号在一个框里，左点加，右点删
-            t_col, x_col = st.columns([5, 1.2], gap="small")
-            with t_col:
-                if st.button(f" {w}", key=f"auto_add_{idx}", use_container_width=True):
-                    st.session_state.input_val += f" {w}"
-                    st.rerun()
-            with x_col:
-                if st.button("✕", key=f"auto_del_{idx}", use_container_width=True):
-                    st.toast(f"已从库中移除: {w}")
-                    st.rerun()
+st.markdown('</div>', unsafe_allow_html=True)
