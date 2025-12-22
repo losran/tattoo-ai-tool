@@ -4,7 +4,47 @@ import urllib.parse
 import re
 
 st.set_page_config(layout="wide", page_title="Automation Central")
+# 📍 定位：外观装修区 (插入在 st.title 下方)
+st.markdown("""
+<style>
+    /* 1. 整体暗色背景 */
+    .stApp { background-color: #0e1117; }
 
+    /* 2. 平台选择下拉框美化 */
+    div[data-baseweb="select"] > div {
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 8px !important;
+    }
+
+    /* 3. 提示词文本框 - 磨砂黑色 */
+    .stTextArea textarea {
+        background-color: #0d1117 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 10px !important;
+        color: #c9d1d9 !important;
+        font-family: 'Consolas', 'Monaco', monospace; /* 使用等宽字体，更有代码感 */
+    }
+
+    /* 4. 操作步骤卡片 - 采用暗调处理 */
+    div[data-testid="stMetric"] {
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 12px !important;
+        padding: 15px !important;
+    }
+
+    /* 5. 激发按钮 - 红色渐变呼吸灯感 */
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #ff4b4b 0%, #d62f2f 100%) !important;
+        box-shadow: 0 4px 15px rgba(255, 75, 75, 0.2) !important;
+        border: none !important;
+        height: 50px !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 # --- 1. 核心 JS 模板：带平台适配参数 ---
 def generate_v15_script(prompts, platform_type):
     encoded_data = urllib.parse.quote(json.dumps(prompts))
