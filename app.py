@@ -122,32 +122,28 @@ with col_main:
             st.session_state.ai_results = []
             st.rerun()
 
-    # 底部 AI 触发按钮
-    st.write("")
-    if not st.session_state.ai_results:
-        if st.button("🚀 开始 AI 拆解", type="primary", use_container_width=True):
+if st.button("🚀 开始 AI 拆解", type="primary", use_container_width=True):
             if user_text:
                 with st.spinner("DeepSeek 正在解析五维结构..."):
-                    # 下午的 Prompt 逻辑
                     # --- 💡 核心修改：Prompt 2.0 (针对纹身贴优化版) ---
                     prompt = f"""
                     你是一位【资深纹身贴纸设计师 (Senior Tattoo Sticker Designer)】。
                     请将用户的描述转化为【Midjourney 绘画提示词元素】，并严格填入五维模型。
-        
+
                     【核心原则 - 必须遵守】：
                     1. **材质锁定**：所有设计必须是 "Tattoo Sticker" (纹身贴) 质感。必须包含关键词：white background (白底), die-cut (模切), clean lines (干净线条), vector style (矢量风格), skin-safe ink look (纹身墨水质感)。
                     2. **拒绝插画感**：严禁复杂的背景、严禁过度的光影渲染、严禁相框或纸张展示。只保留图案本身。
                     3. **创意升维**：如果用户描述很简单（如"一只猫"），你必须根据 "Alien Mood" (外星情绪) 的品牌调性（酷、Y2K、怪诞、极简）进行艺术扩写。例如将"猫"扩写为"液态金属质感的猫"或"X光透视风格的猫"。
-        
+
                     【五维模型定义】：
                     1. Subject (主体): 具体的视觉主体 + 材质修饰词 (如: Chromatic liquid snake, Pixel art heart)。
                     2. Action (动态): 主体的形态或交互 (如: Entangled with wires, Melting down, Floating)。
                     3. Style (风格): 具体的艺术流派 (如: Y2K, Cyberpunk, Neo-tribal, Minimalist line art)。
                     4. Mood (氛围): 情感色彩 (如: Ethereal, Edgy, Mysterious)。
                     5. Usage (部位): 推荐贴的位置 (如: Arm, Neck, Ankle)。
-        
-                    【原文】：{txt}
-        
+
+                    【原文】：{user_text}
+
                     【输出格式要求】：
                     Subject:Chrome Metal Heart|Action:Melting and dripping|Style:Y2K Acid Graphics|Mood:Cool and Edgy|Usage:Arm
                     (注意：用|分隔，不要换行，不要加序号，请直接输出英文结果以便 MJ 识别，但保留冒号前的英文分类名)
@@ -159,7 +155,7 @@ with col_main:
                             temperature=0.1
                         ).choices[0].message.content
                         
-                        # 解析逻辑
+                        # 解析逻辑 (保持不变)
                         parsed = []
                         clean = res.replace("**", "").replace("\n", "|").replace("：", ":")
                         for item in clean.split("|"):
@@ -172,8 +168,7 @@ with col_main:
                                             if w and w not in ["无", "N/A"]: parsed.append({"cat": key, "val": w})
                         st.session_state.ai_results = parsed
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"AI Error: {e}")
+                    except Exception as e: st.error(str(e))
 
 # === 右侧：仓库管理 (接入真实 GitHub 数据) ===
 if st.session_state.is_open:
@@ -213,4 +208,5 @@ if st.session_state.is_open:
                             st.rerun()
         else:
             st.caption("该分类暂无数据")
+
 
