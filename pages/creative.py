@@ -70,6 +70,33 @@ def get_image_desc(image_bytes):
         st.error(f"网络连接超时: {str(e)}")
         return None
 
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    
+    try:
+        # 增加提示，让用户知道后台在动
+        response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=40)
+        
+        if response.status_code == 200:
+            res_json = response.json()
+            # 兼容不同模型的返回格式
+            if isinstance(res_json, list) and len(res_json) > 0:
+                return res_json[0].get('generated_text')
+            elif isinstance(res_json, dict):
+                return res_json.get('generated_text')
+            return None
+            
+        elif response.status_code == 503:
+            st.warning("⏳ AI 正在排队起床（加载中），请再等 10 秒后点一下...")
+            return "LOADING" # 特殊标识，表示模型在加载
+            
+        else:
+            # 即使报错，也要把原因写在屏幕上，方便我们排查
+            st.error(f"抱脸接口报错: {response.status_code} - {response.text[:50]}")
+            return None
+    except Exception as e:
+        st.error(f"网络连接超时: {str(e)}")
+        return None
+
 # --- 3. UI 布局 ---
 st.set_page_config(layout="wide", page_title="Creative Engine")
 st.title("🎨 创意引擎")
@@ -101,17 +128,30 @@ with col_gallery:
 
 with col_main:
     # 这一块是你之前的生成和反推逻辑，核心不变
-    with st.expander("📸 参考图提取"):
-        up = st.file_uploader("上传", type=['jpg','png'])
-        if up and st.button("🔍 提取特征"):
-            desc = get_image_desc(up.getvalue())
-            if desc:
-                tags = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[{"role": "user", "content": f"拆解为中文标签：{desc}"}]
-                ).choices[0].message.content
-                st.session_state.img_tags = tags
-                st.success(tags)
+    with st.expander("📸 参考图提取", expanded=True):
+            up = st.file_uploader("上传纹身参考图", type=['jpg','png','jpeg'])
+            if up:
+                st.image(up, width=200)
+                if st.button("🔍 开始提取特征", use_container_width=True):
+                    with st.spinner("AI 正在深度看图..."):
+                        desc = get_image_desc(up.getvalue())
+                        
+                        if desc == "LOADING":
+                            st.info("🔄 模型正在初始化，请在 10 秒后再点一次。")
+                        elif desc:
+                            # 让 DeepSeek 介入，把英文翻译并拆成中文标签
+                            prompt = f"你是一个纹身设计师。请把这段图片描述翻译并拆解成Subject:词|Action:词|Style:词|Mood:词|Usage:词。必须是中文。描述：{desc}"
+                            try:
+                                res = client.chat.completions.create(
+                                    model="deepseek-chat",
+                                    messages=[{"role": "user", "content": prompt}]
+                                ).choices[0].message.content
+                                st.session_state.img_tags = res
+                                st.success(f"✅ 提取成功：{res}")
+                            except:
+                                st.error("DeepSeek 拆解标签失败，请重试。")
+                        else:
+                            st.error("❌ 抱歉，图片解析没成功，请检查 Token 或重试。")
 
     if st.button("🔥 一键生成方案", type="primary", use_container_width=True):
         # 批量拉取素材生成，代码逻辑同之前
