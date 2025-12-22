@@ -186,7 +186,7 @@ with col_main:
         
     with col_trigger:
         do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
-        
+        st.session_state.selected_prompts = []
         if do_generate:
             st.session_state.polished_text = "" 
             st.session_state.generated_cache = []
