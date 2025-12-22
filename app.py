@@ -112,25 +112,23 @@ col_nav, col_mid, col_lib = st.columns([1, 4, 2])
 
 # 👉 左侧：统计
 # 👉 左：Logo 顶部，统计固定底部
+
 with col_nav:
-    # 1. 显示 Logo (你可以换成图片)
-    st.markdown("## 🌀") 
+    st.markdown("### 🌀") 
     
-    # 2. 构建左下角统计 HTML
+    # 构建 HTML 字符串
     stats_html = '<div class="sticky-stats">'
     for k in ["主体", "风格", "部位", "氛围"]:
-        # 安全获取数量，防止报错
-        num = len(st.session_state.db.get(k, []))
-        stats_html += f"""
-        <div class="nav-item">
-            <div class="nav-label">{k}</div>
-            <div class="nav-val">{num}</div>
-        </div>
-        """
+        # 获取数量，如果获取失败默认为空列表
+        items = st.session_state.db.get(k, [])
+        num = len(items)
+        # 拼接 HTML
+        stats_html += f'<div class="nav-item"><div class="nav-label">{k}</div><div class="nav-val">{num}</div></div>'
     stats_html += '</div>'
     
-    # 3. 渲染 HTML
+    # 渲染 HTML (注意：unsafe_allow_html=True 是必须的！)
     st.markdown(stats_html, unsafe_allow_html=True)
+# (复制到这里结束)
     
 # 👉 中间：操作
 with col_mid:
@@ -247,5 +245,6 @@ with col_lib:
         st.info("暂无数据")
     
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 
