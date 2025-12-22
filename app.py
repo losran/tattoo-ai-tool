@@ -1,73 +1,18 @@
 import streamlit as st
 import requests, base64, time
 from openai import OpenAI
+# 📍 引入样式管理器 (保持你现在的视觉架构)
+from style_manager import apply_pro_style, render_unified_sidebar
 
-# --- 1. 核心配置必须放第一行 (修复报错关键) ---
-st.set_page_config(layout="wide", page_title="Tattoo Lite")
+# --- 1. 核心配置 (必须第一行) ---
+st.set_page_config(layout="wide", page_title="Tattoo AI Workbench")
 
-# --- 2. 样式定义 (直接集成，不再依赖外部文件) ---
-st.markdown("""
-<style>
-    /* 1. 整体暗色基调 */
-    .stApp {
-        background-color: #0e1117;
-        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
-    }
-
-    /* 2. 隐藏顶部多余元素，让空间更大 */
-    header, [data-testid="stHeader"] {visibility: hidden;}
-    .block-container {padding-top: 20px; padding-bottom: 20px;}
-
-    /* 3. 核心输入框 - 磨砂黑质感 */
-    .stTextArea textarea {
-        background-color: #0d1117 !important;
-        border: 1px solid #30363d !important;
-        border-radius: 12px !important;
-        color: #c9d1d9 !important;
-    }
-    .stTextArea textarea:focus {
-        border-color: #ff4b4b !important;
-        box-shadow: 0 0 0 1px #ff4b4b !important;
-    }
-
-    /* 4. 拆分出的“小标签”样式 */
-    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
-        background-color: #161b22 !important;
-        border: 1px solid #30363d !important;
-        border-radius: 20px !important;
-        padding: 4px 15px !important;
-        font-size: 13px !important;
-        color: #8b949e !important;
-    }
-    
-    /* 5. 底部大按钮 - 一键入库 */
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #ff4b4b 0%, #d62f2f 100%) !important;
-        border: none !important;
-        height: 45px !important;
-        border-radius: 8px !important;
-    }
-
-    /* 6. 简单的左侧统计卡片样式 */
-    .stat-card {
-        border: 1px solid #30363d;
-        border-radius: 8px;
-        padding: 10px;
-        margin-bottom: 8px;
-        text-align: center;
-        background: #161b22;
-    }
-    .stat-num { font-size: 18px; color: #4CAF50; font-weight: bold; }
-</style>
-""", unsafe_allow_html=True)
-
-# --- 3. 初始化配置 ---
-# ⚠️ 确保 .streamlit/secrets.toml 里有 DEEPSEEK_KEY 和 GITHUB_TOKEN
+# --- 2. 初始化 API 和 数据库配置 (下午的功能逻辑) ---
 try:
     client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
     GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-except Exception as e:
-    st.error("⚠️ 请检查 secrets.toml 配置！")
+except:
+    st.error("⚠️ 请配置 secrets.toml 中的 DEEPSEEK_KEY 和 GITHUB_TOKEN")
     st.stop()
 
 REPO = "losran/tattoo-ai-tool"
@@ -76,21 +21,20 @@ FILES = {
     "Style": "styles.txt", "Mood": "moods.txt", "Usage": "usage.txt"
 }
 
-# --- 4. 核心工具函数 ---
+# --- 3. 核心工具函数 (复活下午的逻辑) ---
 def get_data(filename):
-    """从 GitHub 获取数据列表"""
+    """GitHub 获取"""
     url = f"https://api.github.com/repos/{REPO}/contents/data/{filename}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     try:
         resp = requests.get(url, headers=headers)
         if resp.status_code == 200:
             return [line.strip() for line in base64.b64decode(resp.json()['content']).decode().splitlines() if line.strip()]
-    except:
-        pass
+    except: pass
     return []
 
 def sync_data(filename, data_list):
-    """同步数据回 GitHub"""
+    """GitHub 同步"""
     url = f"https://api.github.com/repos/{REPO}/contents/data/{filename}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     try:
@@ -98,134 +42,157 @@ def sync_data(filename, data_list):
         content_str = "\n".join(sorted(list(set(data_list))))
         b64_content = base64.b64encode(content_str.encode()).decode()
         requests.put(url, headers=headers, json={
-            "message": "update from lite tool",
+            "message": "update from mirror tool",
             "content": b64_content,
             "sha": get_resp.get('sha')
         })
-    except Exception as e:
-        st.error(f"同步失败: {e}")
+    except: st.error("同步失败")
 
-# --- 5. 初始化状态 ---
+# --- 4. 状态初始化 ---
 if 'db' not in st.session_state:
     st.session_state.db = {k: get_data(v) for k, v in FILES.items()}
-if 'results' not in st.session_state:
-    st.session_state.results = []
+if 'input_val' not in st.session_state: st.session_state.input_val = ""
+if 'ai_results' not in st.session_state: st.session_state.ai_results = [] # 存储AI拆解结果
+if 'is_open' not in st.session_state: st.session_state.is_open = True
 
-# --- 6. 页面布局 (左-中-右) ---
-c_nav, c_main, c_lib = st.columns([1, 4, 2])
+# --- 5. 注入视觉 (新版样式) ---
+apply_pro_style()
 
-# 👉 左栏：统计
-with c_nav:
-    st.markdown("### 📊")
-    for k, v in st.session_state.db.items():
-        st.markdown(f"""
-        <div class="stat-card">
-            <div style="color:#888;font-size:12px">{k}</div>
-            <div class="stat-num">{len(v)}</div>
-        </div>
-        """, unsafe_allow_html=True)
+# 侧边栏：使用真实数据驱动统计
+real_counts = {k: len(v) for k, v in st.session_state.db.items()}
+render_unified_sidebar(real_counts)
 
-# 👉 中栏：操作核心
-with c_main:
-    st.title("⚡ 极简纹身工作台")
-    txt = st.text_area("输入文案", height=100, placeholder="在此粘贴客户需求...")
+# --- 6. 顶层开关 (镜像布局核心) ---
+btn_col1, btn_col2 = st.columns([12, 1])
+with btn_col2:
+    icon = "❯" if st.session_state.is_open else "❮ 仓库"
+    if st.button(icon, help="切换仓库显示"):
+        st.session_state.is_open = not st.session_state.is_open
+        st.rerun()
+
+# --- 7. 主布局结构 ---
+if st.session_state.is_open:
+    col_main, col_right = st.columns([5, 1.8])
+else:
+    col_main = st.container()
+
+# === 中间：核心工作台 (接入 AI 逻辑) ===
+with col_main:
+    st.title("⚡ 智能入库")
     
-    if st.button("💥 拆解", type="primary", use_container_width=True):
-        if txt:
-            prompt = f"""
-            你是一个纹身视觉元素提取器。请从下文中提取具体的画面细节，填入五维模型：
-            1. Subject: 必须提取具体的物体名词（如：雏菊、蛇、几何体、月亮）。
-            2. Action: 具体的动态（如：缠绕、绽放、流淌）。
-            3. Style: 视觉风格（如：水彩、线条、Old School）。
-            4. Mood: 氛围关键词。
-            5. Usage: 部位或用途。
-            
-            原文：{txt}
-            
-            输出格式要求：Subject:雏菊|Action:绽放|Style:水彩... (用|分隔，不要加序号)
-            """
-            
-            with st.spinner("🔍 正在狠抠细节..."):
-                try:
-                    res = client.chat.completions.create(
-                        model="deepseek-chat",
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.1
-                    ).choices[0].message.content
-                    
-                    # 解析逻辑
-                    parsed = []
-                    clean = res.replace("**", "").replace("\n", "|").replace("：", ":").replace("  ", "")
-                    
-                    for item in clean.split("|"):
-                        if ":" in item:
-                            cat, val = item.split(":", 1)
-                            for key in FILES.keys():
-                                if key.lower() in cat.lower():
-                                    for w in val.replace("、", "/").replace(",", "/").replace("，", "/").split("/"):
-                                        w = w.strip()
-                                        if w and w not in ["无", "未提及", "N/A"]: 
-                                            parsed.append({"cat": key, "val": w})
-                    
-                    st.session_state.results = parsed
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"AI 请求失败: {e}")
+    # 输入框 (绑定 input_val 以便点选填入)
+    user_text = st.text_area("提示词编辑区", value=st.session_state.input_val, height=300, label_visibility="collapsed")
+    st.session_state.input_val = user_text
 
-    # 结果预览与入库区
-    if st.session_state.results:
-        st.divider()
-        st.caption("勾选以入库：")
+    # AI 预览结果区 (下午的功能)
+    if st.session_state.ai_results:
+        st.markdown("#### AI 拆解预览")
+        st.caption("勾选确认入库：")
         
-        selected = []
+        # 收集选中的
+        selected_to_save = []
+        
+        # 按分类显示预览
         for cat in FILES.keys():
-            items = [x for x in st.session_state.results if x['cat'] == cat]
+            items = [x for x in st.session_state.ai_results if x['cat'] == cat]
             if items:
                 st.markdown(f"**{cat}**")
                 cols = st.columns(4)
                 for i, item in enumerate(items):
                     with cols[i % 4]:
-                        if st.checkbox(item['val'], value=True, key=f"chk_{item['val']}_{i}"):
-                            selected.append(item)
+                        # 使用 toggle 或 checkbox 看起来更像标签
+                        if st.checkbox(item['val'], value=True, key=f"new_{item['val']}_{i}"):
+                            selected_to_save.append(item)
         
         st.write("")
-        c1, c2 = st.columns(2)
-        if c1.button("🚀 存入云端", type="primary", use_container_width=True):
-            for item in selected:
+        c_save, c_clear = st.columns([1, 4])
+        if c_save.button("📥 一键入库", type="primary", use_container_width=True):
+            # 执行真实入库同步
+            for item in selected_to_save:
                 cat = item['cat']
                 if item['val'] not in st.session_state.db[cat]:
                     st.session_state.db[cat].append(item['val'])
-                    # 实时同步
                     sync_data(FILES[cat], st.session_state.db[cat])
-            st.session_state.results = []
-            st.success("已保存！")
+            st.session_state.ai_results = []
+            st.success("已同步至 GitHub！")
             time.sleep(1)
             st.rerun()
             
-        if c2.button("清空", use_container_width=True):
-            st.session_state.results = []
+        if c_clear.button("清空预览"):
+            st.session_state.ai_results = []
             st.rerun()
 
-# 👉 右栏：仓库管理 (带滚动条，不占用主屏)
-with c_lib:
-    st.subheader("📦 仓库")
-    cat_view = st.selectbox("查看分类", list(FILES.keys()))
-    
-    current_list = st.session_state.db.get(cat_view, [])
-    to_delete = []
-    
-    if current_list:
-        # 使用容器限制高度，让列表在右侧内部滚动
-        with st.container(height=600):
-            for item in current_list:
-                if st.checkbox(item, key=f"del_{item}"):
-                    to_delete.append(item)
+    # 底部 AI 触发按钮
+    st.write("")
+    if not st.session_state.ai_results:
+        if st.button("🚀 开始 AI 拆解", type="primary", use_container_width=True):
+            if user_text:
+                with st.spinner("DeepSeek 正在解析五维结构..."):
+                    # 下午的 Prompt 逻辑
+                    prompt = f"""
+                    提取纹身元素填入五维模型：
+                    1.Subject(物体) 2.Action(动态) 3.Style(风格) 4.Mood(氛围) 5.Usage(部位)
+                    原文：{user_text}
+                    格式：Subject:雏菊|Action:绽放... (用|分隔)
+                    """
+                    try:
+                        res = client.chat.completions.create(
+                            model="deepseek-chat",
+                            messages=[{"role": "user", "content": prompt}],
+                            temperature=0.1
+                        ).choices[0].message.content
+                        
+                        # 解析逻辑
+                        parsed = []
+                        clean = res.replace("**", "").replace("\n", "|").replace("：", ":")
+                        for item in clean.split("|"):
+                            if ":" in item:
+                                cat, val = item.split(":", 1)
+                                for key in FILES.keys():
+                                    if key.lower() in cat.lower():
+                                        for w in val.replace(",", "/").split("/"):
+                                            w = w.strip()
+                                            if w and w not in ["无", "N/A"]: parsed.append({"cat": key, "val": w})
+                        st.session_state.ai_results = parsed
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"AI Error: {e}")
+
+# === 右侧：仓库管理 (接入真实 GitHub 数据) ===
+if st.session_state.is_open:
+    with col_right:
+        st.markdown("### 📦 仓库管理")
+        # 选择查看真实分类
+        cat_view = st.selectbox("类型", list(FILES.keys()), label_visibility="collapsed")
         
-        if to_delete:
-            if st.button(f"删除选中 ({len(to_delete)})"):
-                new_list = [x for x in current_list if x not in to_delete]
-                st.session_state.db[cat_view] = new_list
-                sync_data(FILES[cat_view], new_list)
-                st.rerun()
-    else:
-        st.caption("空空如也")
+        # 获取当前分类的真实数据
+        current_words = st.session_state.db.get(cat_view, [])
+        
+        st.write("")
+        # 📍 这里的 UI 是你最喜欢的：文字和叉号合并在一个视觉框内
+        # 但这次我们循环的是 current_words (真实数据)
+        
+        if current_words:
+            # 使用容器让列表可滚动，不把页面撑太长
+            with st.container(height=600):
+                for idx, w in enumerate(current_words):
+                    # 极细 column 模拟标签
+                    t_col, x_col = st.columns([5, 1.2])
+                    
+                    with t_col:
+                        # 左边：点击 = 添加到输入框
+                        if st.button(f" {w}", key=f"add_{cat_view}_{idx}", use_container_width=True):
+                            st.session_state.input_val += f" {w}"
+                            st.rerun()
+                    
+                    with x_col:
+                        # 右边：点击 = 从 GitHub 删除
+                        if st.button("✕", key=f"del_{cat_view}_{idx}", use_container_width=True):
+                            # 真实的删除逻辑
+                            new_list = [x for x in current_words if x != w]
+                            st.session_state.db[cat_view] = new_list
+                            sync_data(FILES[cat_view], new_list) # 同步回 GitHub
+                            st.toast(f"已删除: {w}")
+                            st.rerun()
+        else:
+            st.caption("该分类暂无数据")
