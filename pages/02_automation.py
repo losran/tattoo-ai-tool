@@ -5,73 +5,92 @@ import re
 
 st.set_page_config(layout="wide", page_title="Auto Task")
 
-# --- 1. JS 脚本模板 (保持你最爱的 v15.0 逻辑) ---
-def generate_magic_code(prompts):
-    encoded = urllib.parse.quote(json.dumps(prompts))
+# --- 1. 你最强的 v15.0 JS 脚本模板 (带全平台适配) ---
+def generate_v15_script(prompts):
+    encoded_data = urllib.parse.quote(json.dumps(prompts))
     return f"""(async function() {{
     window.kill = false;
-    const tasks = JSON.parse(decodeURIComponent("{encoded}"));
-    function showStatus(t, c="#6366f1") {{
-        let e = document.getElementById('magic-status-bar') || document.createElement('div');
-        e.id = 'magic-status-bar';
-        e.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;padding:10px 20px;border-radius:30px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 10px 25px rgba(0,0,0,0.2);background:"+c+";color:#fff;transition:0.3s;";
-        if(!document.getElementById('magic-status-bar')) document.body.appendChild(e);
-        e.textContent = t;
-    }}
-    function getInput() {{ return document.querySelector('#prompt-textarea, div[contenteditable="true"], textarea, .n-input__textarea-el'); }}
-    function isGen() {{ return Array.from(document.querySelectorAll('button')).some(b => b.innerText.includes('停止') || b.innerText.includes('Stop')); }}
+    const tasks = JSON.parse(decodeURIComponent("{encoded_data}"));
     
-    showStatus("🚀 纹身自动化启动...");
-    for (let i=0; i<tasks.length; i++) {{
-        if(window.kill) break;
-        showStatus("✍️ 正在输入 ("+(i+1)+"/"+tasks.length+")");
-        let b = getInput(); if(!b) break;
-        b.focus(); document.execCommand('insertText', false, tasks[i]);
+    function showStatus(text, color = "#6366f1") {{
+        let el = document.getElementById('magic-status-bar') || document.createElement('div');
+        el.id = 'magic-status-bar';
+        el.style.cssText = "position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:999999; padding:10px 20px; border-radius:30px; font-family:sans-serif; font-size:14px; font-weight:bold; box-shadow:0 10px 25px rgba(0,0,0,0.2); background:"+color+"; color:#fff; transition: all 0.3s;";
+        if(!document.getElementById('magic-status-bar')) document.body.appendChild(el);
+        el.textContent = text;
+    }}
+
+    function getInputBox() {{
+        return document.querySelector('#prompt-textarea, div[contenteditable="true"], textarea, .n-input__textarea-el, [placeholder*="输入"], [placeholder*="提问"]');
+    }}
+
+    function getSendBtn() {{
+        let btns = Array.from(document.querySelectorAll('button, [role="button"], i'));
+        return btns.find(b => {{
+            const t = (b.innerText || b.ariaLabel || b.className || "").toLowerCase();
+            return (t.includes('发') || t.includes('send')) && !t.includes('新') && !t.includes('stop') && b.offsetParent !== null;
+        }});
+    }}
+
+    function isGenerating() {{
+        return Array.from(document.querySelectorAll('button, [role="button"]')).some(b => {{
+            const t = (b.innerText || b.ariaLabel || "").toLowerCase();
+            return t.includes('stop') || t.includes('停止') || t.includes('generating');
+        }});
+    }}
+
+    showStatus("🤖 纹身大师自动化启动...");
+    for (let i = 0; i < tasks.length; i++) {{
+        if (window.kill) break;
+        showStatus("✍️ 正在输入任务: " + (i+1) + " / " + tasks.length);
+        let box = getInputBox();
+        if (!box) {{ showStatus("❌ 找不到输入框", "#ef4444"); break; }}
+        box.focus();
+        document.execCommand('insertText', false, tasks[i]);
         await new Promise(r => setTimeout(r, 1000));
-        b.dispatchEvent(new Event('input', {{bubbles:true}}));
-        b.dispatchEvent(new KeyboardEvent('keydown', {{bubbles:true, key:'Enter', keyCode:13}}));
+        box.dispatchEvent(new Event('input', {{ bubbles: true }}));
+        let sendBtn = getSendBtn();
+        if (sendBtn) sendBtn.click();
         
-        if(i < tasks.length-1) {{
+        if (i < tasks.length - 1) {{
             await new Promise(r => setTimeout(r, 3000));
-            while(isGen() && !window.kill) {{ await new Promise(r => setTimeout(r, 1000)); }}
+            let waitTime = 0;
+            while(isGenerating() && !window.kill) {{
+                showStatus("🎨 AI 作画中 (" + waitTime + "s)...", "#8b5cf6");
+                await new Promise(r => setTimeout(r, 1000));
+                waitTime++;
+                if (waitTime > 200) break;
+            }}
+            showStatus("⏳ 冷却中...", "#f59e0b");
             await new Promise(r => setTimeout(r, 5000));
         }}
     }}
-    showStatus("🎉 全部完成！", "#10b981");
+    showStatus("🎉 任务全部完成！", "#10b981");
 }})();"""
 
-# --- 2. UI 界面 ---
+# --- 2. 界面设计 ---
 st.title("🤖 自动化任务分发中控")
 
 default_text = st.session_state.get('auto_input_cache', "")
 user_input = st.text_area("在此粘贴或编辑提示词：", value=default_text, height=350)
 
 if st.button("🚀 生成全能脚本 (F12)", type="primary", use_container_width=True):
-    # 【核心逻辑升级】：不再按行切分，而是识别“方案”块
-    # 使用正则表达式匹配 **方案一**、**方案1** 等字样作为分割点
+    # 【智能拆分】：使用正则匹配 **方案一：** 这种块
+    # 逻辑：只要看到“方案”和冒号，就认为是一个新任务的开始
     blocks = re.split(r'\*\*方案[一二三四五六七八九十\d]+[:：].*?\*\*', user_input)
     
-    # 清洗并提取有效内容
-    task_list = []
-    for block in blocks:
-        # 去掉星号、多余空格和多余换行
-        content = block.strip().replace('* ', '').replace('\n', ' ')
-        if len(content) > 5: # 过滤掉太短的干扰项
-            task_list.append(content)
+    # 清洗掉多余的星号和换行，变成适合跑图的单行
+    task_list = [b.strip().replace('* ', '').replace('\n', ' ') for b in blocks if len(b.strip()) > 5]
     
     if task_list:
         st.divider()
         st.subheader(f"📦 待处理任务: {len(task_list)} 条")
-        with st.expander("检查任务内容"):
-            for i, t in enumerate(task_list):
-                st.write(f"任务 {i+1}: {t}")
         
-        final_js = generate_magic_code(task_list)
+        # 生成 JS 代码
+        final_js = generate_v15_script(task_list)
+        
+        # 醒目的操作指引
+        st.warning("👉 **操作指引**：\n1. 点击下方代码框右上角的 **复制** 按钮。\n2. 打开跑图网站，按键盘上的 **F12**。\n3. 点击 **Console (控制台)**，粘贴代码并回车。")
         st.code(final_js, language="javascript")
-        st.info("💡 操作指引：点击上方代码框右上角复制，去目标站 F12 -> Console 粘贴回车。")
     else:
-        st.error("⚠️ 识别不到有效方案内容，请检查格式是否包含 '**方案x：**'")
-
-if st.button("🗑️ 清空内容"):
-    st.session_state.auto_input_cache = ""
-    st.rerun()
+        st.error("无法识别任务，请确保格式包含类似 '**方案一：**' 的字样。")
