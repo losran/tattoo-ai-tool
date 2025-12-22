@@ -184,42 +184,58 @@ with col_main:
         # 数字输入框
         num = st.number_input("数量", 1, 15, 3, label_visibility="collapsed")
         
-# 1. 你的生成逻辑 (完全保留你的变量名 col_trigger)
-    with col_trigger:
-        do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
-        
-        if do_generate:
-            # 先清空旧的润色和缓存，防止叠加
+if do_generate:
+            # 1. 清空旧数据
             st.session_state.polished_text = "" 
             st.session_state.generated_cache = []
             
-            # 获取数据 (保留你的写法)
-            # 确保 WAREHOUSE 和 get_github_data 在你的上下文里是可用的
+            # 2. 获取最新数据
             db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
             
             if not any(db_all.values()):
-                st.error("仓库里没词，没法自动跑啊哥们！")
+                st.error("仓库为空，请检查网络或配置！")
             else:
                 import random
-                for _ in range(num): # num 是你上面定义的数量变量
+                
+                # 🔴🔴🔴 核心配置：定义你的分类 Key 🔴🔴🔴
+                # 请务必检查这里！你的主体分类在 WAREHOUSE 里叫什么？
+                # 如果叫 'elements' 就改成 'elements'，如果叫 'subject' 就保持 'subject'
+                MAIN_KEY = 'subject' 
+                
+                for _ in range(num):
+                    # A. 处理手写输入 (如果有)
                     raw_input = st.session_state.get('manual_editor', "")
-                    manual_words = raw_input.split() if isinstance(raw_input, str) else []
+                    final_tags = raw_input.split() if isinstance(raw_input, str) and raw_input.strip() else []
                     
-                    # 你的混乱度算法
-                    extra_count = 2 if chaos_level < 30 else (4 if chaos_level < 70 else 6)
-                    extra = []
+                    # B. 计算需要几个随机词 (根据混乱度)
+                    # 比如混乱度高，total_random = 6；低则是 2
+                    total_random = 2 if chaos_level < 30 else (4 if chaos_level < 70 else 6)
                     
-                    # 筛选有效分类防止报错
-                    valid_cats = [k for k, v in db_all.items() if v]
+                    # C. 强制抽取主体 (C位)
+                    # 只要仓库里有主体数据，就先抽一个放进去！
+                    if MAIN_KEY in db_all and db_all[MAIN_KEY]:
+                        subject_word = random.choice(db_all[MAIN_KEY])
+                        final_tags.append(subject_word)
+                        # 既然已经抽了一个主体，剩下的随机名额就减 1
+                        total_random -= 1
                     
-                    if valid_cats:
-                        for _ in range(extra_count):
-                            random_cat = random.choice(valid_cats)
-                            extra.append(random.choice(db_all[random_cat]))
+                    # D. 抽取配菜 (风格/构图/颜色/质感...)
+                    # 排除掉刚才已经抽过的主体分类，只从剩下的分类里抽
+                    other_cats = [k for k, v in db_all.items() if k != MAIN_KEY and v]
                     
-                    combined_p = " + ".join(filter(None, manual_words + extra))
+                    if other_cats and total_random > 0:
+                        # 比如还需要 3 个词，就从剩下的分类里随机选 3 个分类 (允许重复或不重复看你需求，这里用 random.choices 允许重复分类)
+                        for _ in range(total_random):
+                            rand_cat = random.choice(other_cats)
+                            rand_word = random.choice(db_all[rand_cat])
+                            final_tags.append(rand_word)
                     
-                    # 存入你的缓存 list
+                    # E. 组合结果
+                    # 去重(set)并过滤空值，然后拼接
+                    # 使用 dict.fromkeys 保持顺序去重
+                    unique_tags = list(dict.fromkeys(filter(None, final_tags)))
+                    combined_p = " + ".join(unique_tags)
+                    
                     st.session_state.generated_cache.append(combined_p)
                 
                 st.rerun()
