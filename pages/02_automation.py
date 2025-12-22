@@ -65,7 +65,29 @@ def generate_v15_script(prompts, platform_type):
     function showStatus(text, color = "#6366f1") {{
         let el = document.getElementById('magic-status-bar') || document.createElement('div');
         el.id = 'magic-status-bar';
-        el.style.cssText = "position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:999999; padding:10px 20px; border-radius:30px; font-family:sans-serif; font-size:14px; font-weight:bold; box-shadow:0 10px 25px rgba(0,0,0,0.2); background:"+color+"; color:#fff; transition: all 0.3s;";
+        // 📍 替换开始
+    el.style.cssText = `
+        position: fixed; 
+        top: 25px; 
+        left: 50%; 
+        transform: translateX(-50%); 
+        z-index: 999999; 
+        padding: 12px 28px; 
+        border-radius: 50px; 
+        font-family: 'Segoe UI', sans-serif; 
+        font-size: 13px; 
+        font-weight: 600; 
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #fff; 
+        background: rgba(13, 17, 23, 0.85); 
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 75, 75, 0.4); 
+        box-shadow: 0 0 20px rgba(255, 75, 75, 0.2), inset 0 0 10px rgba(255, 75, 75, 0.05);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    `;
+    // 📍 替换结束
         if(!document.getElementById('magic-status-bar')) document.body.appendChild(el);
         el.textContent = text;
     }}
