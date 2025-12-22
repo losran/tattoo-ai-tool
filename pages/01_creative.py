@@ -51,20 +51,18 @@ for key in ['selected_prompts', 'generated_cache', 'polished_text', 'manual_edit
         if 'editor' in key or 'text' in key: st.session_state[key] = ""
         else: st.session_state[key] = []
 
-# 自定义 CSS
+# 📍 保持你的暗黑审美 CSS
 st.markdown("""
 <style>
-    .stApp { background-color: #0e1117; }
+    .stApp { background-color: #0e1117; font-family: "PingFang SC", sans-serif; }
     div[data-testid="stButton"] > button {
         width: 100%; background-color: #161b22 !important;
         border: 1px solid #30363d !important; border-radius: 10px !important;
-        padding: 22px !important; text-align: left !important;
-        color: #8b949e !important;
+        padding: 22px !important; text-align: left !important; color: #8b949e !important;
     }
     div[data-testid="stButton"] > button[kind="primary"] {
         border: 2px solid #ff4b4b !important;
-        background-color: #211d1d !important;
-        color: #ffffff !important;
+        background-color: #211d1d !important; color: #ffffff !important;
     }
     .stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #ff4b4b 0%, #d62f2f 100%) !important;
@@ -76,7 +74,7 @@ st.title("🎨 创意引擎")
 
 col_main, col_gallery = st.columns([5, 2.5])
 
-# --- 右侧：仓库管理 ---
+# --- 右侧：仓库管理 (保持不动) ---
 with col_gallery:
     st.subheader("📦 仓库管理")
     mode = st.radio("模式", ["素材仓库", "灵感成品"], horizontal=True)
@@ -92,7 +90,7 @@ with col_gallery:
                 if st.button("➕ 导入到组合输入框", use_container_width=True):
                     st.session_state.manual_editor = f"{st.session_state.manual_editor} {' '.join(selected_items)}".strip()
                     st.rerun()
-                if st.button(f"🗑️ 删除选中的 {len(selected_items)} 项", type="primary", use_container_width=True):
+                if st.button(f"🗑️ 删除选中项", type="primary", use_container_width=True):
                     remaining = [w for w in words if w not in selected_items]
                     save_to_github(WAREHOUSE[cat], remaining); st.rerun()
     else:
@@ -108,14 +106,14 @@ with col_gallery:
 
 # --- 左侧：核心生成区 ---
 with col_main:
-    # 1. 参数设置
+    # 1. 顶部配置
     col_cfg1, col_cfg2 = st.columns(2)
     with col_cfg1: num = st.slider("生成方案数量", 1, 10, 6)
     with col_cfg2: chaos_level = st.slider("混乱度 (Chaos)", 0, 100, 50)
     
-    st.session_state.manual_editor = st.text_area("✍️ 组合输入框 (在此输入或从右侧导入关键词)", value=st.session_state.manual_editor)
+    st.session_state.manual_editor = st.text_area("✍️ 组合输入框", value=st.session_state.manual_editor)
 
-    # 2. 激发按钮
+    # 2. 🔥 激发按钮 (放在逻辑最前面)
     if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
         st.session_state.polished_text = "" 
         st.session_state.generated_cache = []
@@ -128,7 +126,7 @@ with col_main:
         else:
             for _ in range(num):
                 current_tags = st.session_state.manual_editor.split()
-                # 强制分类：注意此处 Key 必须首字母大写以匹配 WAREHOUSE
+                # 📍 必选分类对齐仓库
                 MANDATORY_KEYS = ['Subject', 'Style'] 
                 SIDE_KEYS = [k for k in db_all.keys() if k not in MANDATORY_KEYS and db_all[k]]
 
@@ -146,30 +144,29 @@ with col_main:
                 st.session_state.generated_cache.append(combined_p)
             st.rerun()
 
-    # 3. 方案展示与筛选 (核心逻辑，仅此一套)
-    if st.session_state.generated_cache and not st.session_state.polished_text:
+    # 3. 🎲 方案展示与筛选 (放在生成按钮之后，确保即时渲染)
+    if st.session_state.generated_cache:
         st.divider()
         st.subheader("🎲 方案筛选 (点击卡片进行调配)")
+        
         cols = st.columns(2)
         for idx, p in enumerate(st.session_state.generated_cache):
             with cols[idx % 2]:
                 is_sel = p in st.session_state.selected_prompts
+                # 📍 这里是你的卡片按钮，高亮逻辑完全保留
                 if st.button(f"方案 {idx+1}\n\n{p}", key=f"sel_{idx}", type="primary" if is_sel else "secondary"):
                     if is_sel: st.session_state.selected_prompts.remove(p)
                     else: st.session_state.selected_prompts.append(p)
                     st.rerun()
 
-    # 4. 润色区域
+    # 4. 🎨 确认方案并开始润色 (当有选中项且未完成润色时显示)
     if st.session_state.selected_prompts and not st.session_state.polished_text:
         st.divider()
         if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
             with st.spinner("AI 正在注入艺术灵魂..."):
                 combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
-                system_prompt = f"""你是一位【资深纹身贴文案策划】。
-                你的任务是基于标签大幅扩写成描述具体的中文文案。
-                1. 拒绝简短。 2. 细节脑补神态姿态。 3. 强制包含“纹身贴”三个字。
-                当前混乱度 {chaos_level}/100。
-                格式：**方案X：** [描述]"""
+                # 📍 保持你的扩写咒语
+                system_prompt = f"""你是一位【资深纹身贴文案策划】。用户的输入是一组标签。你的任务是基于这些标签，**大幅扩写**成一段画面感极强、细节丰富、描述具体的中文文案。强制后缀必须自然融入“纹身贴”这三个字！当前混乱度 {chaos_level}/100。格式：**方案X：** [描述]"""
                 
                 try:
                     res = client.chat.completions.create(
@@ -182,7 +179,7 @@ with col_main:
                 except Exception as e:
                     st.error(f"润色失败: {e}")
 
-    # 5. 润色结果展示
+    # 5. 展示润色成品 (保持你的存档和发送功能)
     if st.session_state.polished_text:
         st.divider()
         st.subheader("🎨 艺术润色成品")
