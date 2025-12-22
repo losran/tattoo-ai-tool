@@ -81,44 +81,90 @@ with col_nav:
     st.markdown(html + '</div>', unsafe_allow_html=True)
 
 # 👉 中：生产大爆炸
+# 👉 中：生产大爆炸 (整段替换)
 with col_mid:
     st.title("✨ 灵感大爆炸拆解")
+    
+    # 1. 输入框
     raw = st.text_area("粘贴样板描述", height=150, key=f"in_{st.session_state.input_id}")
     
+    # 2. 拆解按钮逻辑 (先执行逻辑，存入状态)
     if st.button("🔍 立即拆解", type="primary", use_container_width=True):
-        if st.session_state.pre_tags:
+        if raw:
+            with st.spinner("碎裂中..."):
+                # --- [TEST: API 请求] ---
+                res = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": "要求：Subject:词|Action:词|Style:词|Mood:词|Usage:词。词要拆得极细，禁止废话。"},
+                        {"role": "user", "content": raw}
+                    ],
+                    temperature=0.1
+                ).choices[0].message.content
+                
+                # --- [TEST: 解析清洗] ---
+                parsed = []
+                clean_res = res.replace("**", "").replace("：", ":").replace("\n", "|")
+                for p in clean_res.split("|"):
+                    if ":" in p:
+                        k, v = p.split(":", 1)
+                        # 兼容你指定的五维分类
+                        found_cat = None
+                        for target in ["Subject", "Action", "Style", "Mood", "Usage"]:
+                            if target.lower() in k.lower(): found_cat = target; break
+                        
+                        if found_cat:
+                            # 强力炸开碎片
+                            bits = v.replace("、", "/").replace(",", "/").replace(" ", "/").split("/")
+                            for b in bits:
+                                if b.strip(): parsed.append({"cat": found_cat, "val": b.strip()})
+                
+                if parsed:
+                    st.session_state.pre_tags = parsed
+                    # 只有拆成功了才清空输入框
+                    st.session_state.input_id += 1 
+                    st.rerun() 
+                else:
+                    st.error(f"❌ 解析失败。AI原文：{res}")
+
+    # 3. 🏁 碎片预览区 (必须在按钮外面，这样刷新后才能看见)
+    if st.session_state.pre_tags:
         st.write("---")
-        st.subheader("📋 碎片预览 (五维拆解)")
+        st.subheader("📋 碎片预览 (勾选想要入库的)")
         
         save_list = []
-        # 按你指定的顺序循环展示
-        order = ["🦴 Subject", "⚡ Action", "🎨 Style", "🔮 Mood", "📌 Usage"]
+        # 按指定五维顺序展示
+        order = ["Subject", "Action", "Style", "Mood", "Usage"]
         
         for display_cat in order:
             words = [t for t in st.session_state.pre_tags if t['cat'] == display_cat]
             if words:
-                st.markdown(f"**{display_cat}**")
+                st.markdown(f"**📍 {display_cat}**")
                 cols = st.columns(3)
                 for i, w in enumerate(words):
                     with cols[i % 3]:
-                        if st.checkbox(w['val'], value=True, key=f"boom_{display_cat}_{i}_{st.session_state.input_id}"):
+                        # 加上 input_id 确保 key 永远唯一，防止状态卡死
+                        k = f"pre_{display_cat}_{i}_{st.session_state.input_id}"
+                        if st.checkbox(w['val'], value=True, key=k):
                             save_list.append(w)
-        if raw:
-            with st.spinner("碎裂中..."):
-                res = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[{"role": "system", "content": "分类:短词|分类:短词。分类限:主体,风格,部位,氛围。词要拆得细。"}, {"role": "user", "content": raw}],
-                    temperature=0.3
-                ).choices[0].message.content
-                # 强力拆词逻辑
-                parsed = []
-                for p in res.replace("：", ":").replace("，", "|").split("|"):
-                    if ":" in p:
-                        k, v = p.split(":", 1)
-                        if k.strip() in ["主体", "风格", "部位", "氛围"]:
-                            parsed.extend([{"cat": k.strip(), "val": s.strip()} for s in v.replace("、", "/").split("/") if s.strip()])
-                st.session_state.pre_tags = parsed
-                st.session_state.input_id += 1 
+        
+        # 4. 入库与清空操作
+        st.write("")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🚀 一键入云库", type="primary", use_container_width=True):
+                # 这里对接你的 sync_git 逻辑
+                f_map = {"Subject":"subjects.txt","Action":"actions.txt","Style":"styles.txt","Mood":"moods.txt","Usage":"usage.txt"}
+                for t in save_list:
+                    if t['val'] not in st.session_state.db.get(t['cat'], []):
+                        st.session_state.db.setdefault(t['cat'], []).append(t['val'])
+                        sync_git(f_map.get(t['cat'], "misc.txt"), st.session_state.db[t['cat']])
+                st.session_state.pre_tags = []
+                st.success("同步成功")
+                time.sleep(1); st.rerun()
+        with c2:
+            if st.button("🧹 扫走碎片", use_container_width=True):
+                st.session_state.pre_tags = []
                 st.rerun()
 
 # 2. 立即拆解按钮 (五维大爆炸版)
@@ -198,6 +244,7 @@ with col_lib:
                 sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[cat], st.session_state.db[cat])
                 st.rerun()
     else: st.caption("空空如也")
+
 
 
 
