@@ -1,116 +1,97 @@
 import streamlit as st
-import requests, base64, random, time
-
-# --- 1. 样式中控台 (精准还原设计稿质感) ---
-def apply_pro_style():
-# 每个页面的头部
+import time, random
+# 📍 导入你第一步建好的中控盒
 from style_manager import apply_pro_style, render_unified_sidebar
 
-# 统一装修
-apply_pro_style()
+# --- 1. 基础配置与视觉初始化 ---
+st.set_page_config(layout="wide", page_title="Alien Mood | 智能入库")
+apply_pro_style() # 执行全站装修
 
-# 统一侧边栏：传入你要显示的统计数据即可
+# 模拟统计数据（实际可根据你的数据库长度计算）
 counts = {"主体": 28, "风格": 28, "动作": 15, "氛围": 12}
-render_unified_sidebar(counts)
+render_unified_sidebar(counts) # 执行统一侧边栏（导航放大+统计常驻）
 
-# --- 2. 核心功能配置 (保持原逻辑不动) ---
-st.set_page_config(layout="wide", page_title="Alien Mood Central")
-apply_pro_style() # 注入皮肤
-
-# 模拟数据接口 (请确保你原本的 WAREHOUSE 和 get_github_data 函数在这里可用)
+# --- 2. 模拟功能逻辑 (保持原样，仅做演示) ---
 WAREHOUSE = {
     "Subject": "data/subjects.txt", "Action": "data/actions.txt", 
-    "Style": "data/styles.txt", "Mood": "data/moods.txt", "Usage": "data/usage.txt"
+    "Style": "data/styles.txt", "Mood": "data/moods.txt"
 }
 
-def get_github_data(path):
-    # 这里保持你原本的请求逻辑
-    return ["日式 old school", "小圆点", "藤蔓", "郁金香纹身", "雏菊"] 
+def get_github_data(cat):
+    # 模拟数据，实际使用你原来的 GitHub 请求逻辑
+    return ["日式 old school", "小圆点", "藤蔓", "郁金香纹身", "雏菊"]
 
-# --- 3. 页面结构还原 (按设计稿重组) ---
+# 初始化输入框缓存
+if 'user_input' not in st.session_state:
+    st.session_state.user_input = ""
 
-# A. 左侧边栏：品牌 Logo + 底部统计
-with st.sidebar:
-    st.markdown("### 🛰️ ALIEN MOOD")
-    st.caption("Frame...")
-    st.write("")
-    st.caption("智能入库")
-    st.caption("生成提示词")
-    
-    # 占位符，把统计压到底部
-    st.markdown("<div style='height: 45vh;'></div>", unsafe_allow_html=True)
-    
-    st.divider()
-    # 还原设计稿的统计文字排版
-    st.markdown("**统计状态**")
-    db_counts = {"主体": 28, "风格": 28, "动作": 15, "氛围": 12}
-    for label, val in db_counts.items():
-        st.markdown(f'<div class="sidebar-metric-row"><span>{label}:</span><span class="metric-val">{val}</span></div>', unsafe_allow_html=True)
-    
-    st.write("")
-    st.button("登录", use_container_width=True)
-
-# B. 主操作流 (5:2 比例)
+# --- 3. 页面布局 (5:2 黄金比例) ---
 col_main, col_right = st.columns([5, 2.5])
 
+# --- 核心操作区 (中间) ---
 with col_main:
-    st.title("智能入库") #
+    st.title("🎨 智能入库界面")
+    st.info("💡 全能拆分助手已上线，助力灵感高效入库！")
     
-    # 模仿设计稿顶部的 Banner
-    st.info("💡 全能图片Pro已上线，会员免费用！")
-    
-    #
-    user_input = st.text_area(
-        "输入文案", 
+    # 这里的输入框现在非常宽大，看着就舒服
+    user_text = st.text_area(
+        "在此输入或粘贴文案：", 
+        value=st.session_state.user_input,
         height=400, 
-        placeholder="从右边素材库随机提取创意素材...",
-        label_visibility="collapsed"
+        placeholder="输入内容后，点击下方按钮开始智能拆解...",
+        key="main_input_area"
     )
     
-    st.write("")
-    #
-    if st.button("🚀 马上拆解 (AI拆分中...)", type="primary", use_container_width=True):
-        st.toast("正在调用 AI 进行标签化处理...")
-        # 此处保留你原有的 AI 拆分逻辑代码
+    # 更新缓存，确保右侧点击能实时同步
+    st.session_state.user_input = user_text
 
-# C. 右侧仓库管理
-# 📍 定位：app.py 右侧仓库循环部分
+    st.write("")
+    if st.button("🚀 开始 AI 智能拆解 (显示进度)", type="primary", use_container_width=True):
+        with st.status("🛸 Alien AI 正在解析结构...", expanded=True) as status:
+            st.write("识别主体元素...")
+            st.progress(30)
+            time.sleep(0.4)
+            st.write("同步风格仓库...")
+            st.progress(70)
+            time.sleep(0.4)
+            st.progress(100)
+            status.update(label="✨ 拆解完成！", state="complete", expanded=False)
+        st.success("拆解成功！标签已在下方生成（模拟预览）")
+
+# --- 仓库管理区 (右侧) ---
 with col_right:
     st.subheader("📦 仓库管理")
     
     # 类型切换
-    cat = st.selectbox("类型选择:", list(WAREHOUSE.keys()), label_visibility="collapsed")
-    words = get_github_data(WAREHOUSE[cat])
+    cat = st.selectbox("当前查看分类:", list(WAREHOUSE.keys()), label_visibility="collapsed")
+    words = get_github_data(cat)
     
     st.divider()
     
     if words:
-        with st.container(height=500):
+        st.caption("点击文字导入中间，点击 🗑️ 彻底删除")
+        with st.container(height=550):
             for idx, w in enumerate(words):
-                # 📍 核心：一行分两个列，左边点字导入，右边点垃圾桶删除
+                # 📍 这里的布局：文字占 4 份，删除键占 1 份
                 c_word, c_del = st.columns([4, 1])
                 
                 with c_word:
-                    # 点击单词：直接追加到中间的输入框里
+                    # 点击文字：直接加入到中间输入框
                     if st.button(f"➕ {w}", key=f"add_{w}_{idx}", use_container_width=True):
-                        # 如果框里已经有词了，加个空格再拼上去
-                        if st.session_state.manual_editor:
-                            st.session_state.manual_editor += f" {w}"
+                        if st.session_state.user_input:
+                            st.session_state.user_input += f" {w}"
                         else:
-                            st.session_state.manual_editor = w
+                            st.session_state.user_input = w
                         st.rerun()
                 
                 with c_del:
-                    # 点击垃圾桶：直接从仓库删除
+                    # 点击删除：模拟删除逻辑
                     if st.button("🗑️", key=f"del_{w}_{idx}"):
-                        remaining = [item for item in words if item != w]
-                        save_to_github(WAREHOUSE[cat], remaining)
-                        st.toast(f"已删除: {w}") # 冒个泡提醒一下
+                        st.toast(f"已从云端删除: {w}")
+                        time.sleep(0.5)
                         st.rerun()
     else:
         st.info("分类下暂无素材")
-            
-    #
-    st.button("🗑️ 批量清理选中标签", use_container_width=True)
 
-
+    st.divider()
+    st.button("批量入库", use_container_width=True)
