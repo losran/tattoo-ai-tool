@@ -1,0 +1,10 @@
+[theme]
+# 品牌主色：外星情绪红
+primaryColor = "#ff4b4b"
+# 全局背景：深空黑
+backgroundColor = "#0e1117"
+# 次级背景：磨砂灰 (用于侧边栏和卡片)
+secondaryBackgroundColor = "#161b22"
+# 文字颜色：月光白
+textColor = "#c9d1d9"
+font = "sans serif"
