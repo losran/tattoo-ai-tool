@@ -27,6 +27,24 @@ st.markdown("""
         width: 130px !important;
         z-index: 999;
     }
+    /* 左下角看板锁死 */
+    .sticky-stats {
+        position: fixed;
+        left: 15px;
+        bottom: 30px;
+        width: 90px;
+        z-index: 1002; /* 确保在最上层 */
+    }
+    .nav-item {
+        background: rgba(255, 255, 255, 0.05); /* 确保有背景色 */
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 8px;
+        margin-top: 8px;
+        text-align: center;
+    }
+    .nav-label { font-size: 11px; color: #888; }
+    .nav-val { font-size: 18px; font-weight: bold; color: #58a6ff; }
 
     /* [2] 中间操作区：自适应宽度 */
     [data-testid="stColumn"]:nth-child(2) {
@@ -92,14 +110,27 @@ if 'input_id' not in st.session_state: st.session_state.input_id = 0
 col_nav, col_mid, col_lib = st.columns([1, 4, 2])
 
 # 👉 左侧：统计
+# 👉 左：Logo 顶部，统计固定底部
 with col_nav:
-    st.markdown("### 🌀")
-    st.write("")
-    st.caption("资源统计")
+    # 1. 显示 Logo (你可以换成图片)
+    st.markdown("## 🌀") 
+    
+    # 2. 构建左下角统计 HTML
+    stats_html = '<div class="sticky-stats">'
     for k in ["主体", "风格", "部位", "氛围"]:
+        # 安全获取数量，防止报错
         num = len(st.session_state.db.get(k, []))
-        st.markdown(f'<div class="stat-box"><div style="color:#888;font-size:10px">{k}</div><div class="stat-num">{num}</div></div>', unsafe_allow_html=True)
-
+        stats_html += f"""
+        <div class="nav-item">
+            <div class="nav-label">{k}</div>
+            <div class="nav-val">{num}</div>
+        </div>
+        """
+    stats_html += '</div>'
+    
+    # 3. 渲染 HTML
+    st.markdown(stats_html, unsafe_allow_html=True)
+    
 # 👉 中间：操作
 with col_mid:
     st.title("✨ 智能提取入库")
@@ -215,3 +246,4 @@ with col_lib:
         st.info("暂无数据")
     
     st.markdown('</div>', unsafe_allow_html=True)
+
