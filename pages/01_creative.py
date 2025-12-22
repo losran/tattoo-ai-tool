@@ -38,7 +38,88 @@ def save_to_github(path, data_list):
 # --- 3. UI 布局与状态初始化 ---
 st.set_page_config(layout="wide", page_title="Creative Engine")
 st.title("🎨 创意引擎")
+# 📍 定位：外观装修区 (插入在 st.title 下方)
+st.markdown("""
+<style>
+    /* 1. 全局背景与字体 */
+    .stApp {
+        background-color: #0e1117;
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
 
+    /* 2. 侧边栏美化 */
+    section[data-testid="stSidebar"] {
+        background-color: #161b22 !important;
+        border-right: 1px solid #30363d;
+    }
+
+    /* 3. 灵感调配区 - 文本框与卡片 */
+    div[data-testid="stForm"] {
+        border: 1px solid #30363d !important;
+        border-radius: 12px;
+    }
+    
+    /* 文本输入框样式 */
+    .stTextArea textarea {
+        background-color: #0d1117 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 8px !important;
+        color: #c9d1d9 !important;
+        font-size: 15px !important;
+    }
+
+    /* 4. 方案筛选卡片 (核心进化) */
+    div[data-testid="stButton"] > button {
+        width: 100%;
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 10px !important;
+        padding: 22px !important;
+        text-align: left !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        color: #8b949e !important;
+    }
+
+    /* 鼠标悬停 */
+    div[data-testid="stButton"] > button:hover {
+        border-color: #58a6ff !important;
+        background-color: #1c2128 !important;
+        transform: translateY(-2px);
+    }
+
+    /* 📍 选中状态 (红色高亮) */
+    div[data-testid="stButton"] > button[kind="primary"] {
+        border: 2px solid #ff4b4b !important;
+        box-shadow: 0 4px 20px rgba(255, 75, 75, 0.15) !important;
+        background-color: #211d1d !important;
+        color: #ffffff !important;
+    }
+
+    /* 5. 激发按钮 (主操作) */
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #ff4b4b 0%, #d62f2f 100%) !important;
+        border: none !important;
+        font-weight: 600 !important;
+        letter-spacing: 1px;
+    }
+
+    /* 6. 右侧仓库管理列表 */
+    .stCheckbox label {
+        color: #8b949e !important;
+        font-size: 14px !important;
+    }
+    div[data-testid="stVerticalBlock"] > div[style*="border: 1px solid"] {
+        background-color: #0d1117 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 8px !important;
+    }
+    
+    /* 隐藏滚动条美化 */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #0d1117; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+</style>
+""", unsafe_allow_html=True)
 # 📍 修正初始化逻辑：确保 manual_editor 是字符串不是列表 []
 for key in ['selected_prompts', 'generated_cache', 'polished_text', 'manual_editor']:
     if key not in st.session_state:
