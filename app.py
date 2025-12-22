@@ -9,56 +9,33 @@ REPO = "losran/tattoo-ai-tool"
 
 st.set_page_config(page_title="Tattoo Pro Station", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. 核心 CSS 布局 (全屏锁死版) ---
+# --- 2. 核心 CSS 布局 (强制紧凑版) ---
 st.markdown("""
     <style>
-    /* 1. 强制整页禁止滚动，高度锁死在屏幕内 */
+    /* 1. 锁死网页不准滚动，高度占满屏幕 */
     html, body, [data-testid="stAppViewContainer"] {
-        overflow: hidden !important;
-        height: 100vh !important;
+        overflow: hidden !important; height: 100vh !important;
     }
-
-    /* 2. 移除顶部和底部多余空间 */
-    header {visibility: hidden;}
+    header, [data-testid="stHeader"] { visibility: hidden; }
     .block-container { padding: 0 !important; max-width: 100% !important; height: 100vh !important; }
+
+    /* 2. 三栏物理宽度锁死 */
+    [data-testid="stColumn"]:nth-child(1) { flex: 0 0 100px !important; background: #111; border-right: 1px solid #333; }
+    [data-testid="stColumn"]:nth-child(2) { flex: 1 1 auto !important; background: #0d0d0d; padding: 20px 40px !important; overflow-y: auto !important; }
+    [data-testid="stColumn"]:nth-child(3) { flex: 0 0 320px !important; background: #0a0a0a; border-left: 1px solid #333; padding: 20px !important; }
+
+    /* 3. 💥 碎片横向“大爆炸”布局 (核心点) */
+    /* 强行让 Streamlit 的列容器变成 Flex 容器，让碎片横着排 */
+    [data-testid="stVerticalBlock"] > div:has([data-testid="stCheckbox"]) {
+        display: flex !important; flex-wrap: wrap !important; gap: 6px !important; flex-direction: row !important;
+    }
     
-    /* 3. 三栏物理占位 - 统一高度，内部自滚动 */
-    [data-testid="stColumn"] {
-        height: 100vh !important;
-        overflow-y: auto !important; /* 只有栏目内部可以滚动 */
-        padding: 20px !important;
-        border-right: 1px solid #333;
-    }
-
-    /* 4. 左侧看板：窄一点，深色背景 */
-    [data-testid="stColumn"]:nth-child(1) {
-        flex: 0 0 120px !important;
-        min-width: 120px !important;
-        background: #111;
-    }
-
-    /* 5. 中间生产区：主操作台 */
-    [data-testid="stColumn"]:nth-child(2) {
-        flex: 1 1 auto !important;
-        background: #0d0d0d;
-    }
-
-    /* 6. 右侧仓库：固定宽度，防止被中间挤没 */
-    [data-testid="stColumn"]:nth-child(3) {
-        flex: 0 0 350px !important;
-        min-width: 350px !important;
-        background: #111;
-    }
-
-    /* 💥 标签碎块样式优化：让它们更紧凑 */
+    /* 4. 碎块卡片样式：扁平化，不占用垂直空间 */
     [data-testid="stCheckbox"] {
-        background: #1f2428 !important;
-        border: 1px solid #444 !important;
-        padding: 2px 8px !important;
-        margin-bottom: 3px !important;
-        border-radius: 4px !important;
+        flex: 0 1 auto !important; background: #1f2428 !important; border: 1px solid #444 !important;
+        border-radius: 4px !important; padding: 2px 10px !important; min-width: fit-content !important;
     }
-    .stTextArea textarea { height: 120px !important; } /* 缩小输入框高度 */
+    [data-testid="stCheckbox"] p { font-size: 13px !important; white-space: nowrap !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -169,29 +146,24 @@ with col_mid:
                         
                 except Exception as e:
                     st.error(f"📡 网络或接口异常: {e}")# 3. 🏁 碎片预览区 (只有当 pre_tags 有数据时才显示)
-# --- 找到这行，从这里开始替换 ---
+    # 👉 定位：搜索 if st.session_state.pre_tags:
     if st.session_state.pre_tags:
         st.write("---")
-        st.subheader("📋 碎片预览 (勾选想要入库的)")
+        st.subheader("📋 碎片预览")
         
         save_list = []
-        # 按 Subject, Action, Style, Mood, Usage 顺序排队显示
         order = ["Subject", "Action", "Style", "Mood", "Usage"]
         
         for display_cat in order:
             words = [t for t in st.session_state.pre_tags if t['cat'] == display_cat]
             if words:
                 st.markdown(f"**📍 {display_cat}**")
-                cols = st.columns(3)
+                # --- 关键改变：直接循环，不要再套 columns(3) 了 ---
                 for i, w in enumerate(words):
-                    with cols[i % 3]:
-                        # 给每个小方块起个独一无二的名字，防止报错
-                        # tag_id 就像是身份证号，保证不重复
-                        tag_id = f"chk_{display_cat}_{i}_{st.session_state.input_id}"
-                        if st.checkbox(w['val'], value=True, key=tag_id):
-                            save_list.append(w)
-        
-        st.write("")
+                    tag_id = f"pre_{display_cat}_{i}_{st.session_state.input_id}"
+                    if st.checkbox(w['val'], value=True, key=tag_id):
+                        save_list.append(w)
+                st.write("") # 分类间留点空隙
         # --- 下面是两个并排的按钮：入库 和 扫走 ---
         btn_cols = st.columns(2)
         
@@ -275,6 +247,7 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
 
