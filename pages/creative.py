@@ -44,6 +44,15 @@ def get_image_desc(image_bytes):
 # --- 3. UI 布局 ---
 st.set_page_config(layout="wide", page_title="Creative Engine")
 st.title("🎨 创意引擎")
+# --- 初始化状态 (就像给椅子贴名字，防止找不到人) ---
+if 'selected_prompts' not in st.session_state:
+    st.session_state.selected_prompts = []
+if 'generated_cache' not in st.session_state:
+    st.session_state.generated_cache = []
+if 'polished_text' not in st.session_state:
+    st.session_state.polished_text = ""  # 给它一个默认的空值
+if 'img_tags' not in st.session_state:
+    st.session_state.img_tags = ""
 
 col_main, col_gallery = st.columns([5, 2])
 
