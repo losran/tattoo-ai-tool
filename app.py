@@ -9,45 +9,56 @@ REPO = "losran/tattoo-ai-tool"
 
 st.set_page_config(page_title="Tattoo Pro Station", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. 核心 CSS 布局 (强制隔离三栏 + 碎片卡片化) ---
+# --- 2. 核心 CSS 布局 (全屏锁死版) ---
 st.markdown("""
     <style>
-    /* 基础清理：隐藏页眉页脚，让空间更大 */
-    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
-    .main { background-color: #0d0d0d; color: #fff; }
-    .block-container { padding: 0 !important; max-width: 100% !important; }
+    /* 1. 强制整页禁止滚动，高度锁死在屏幕内 */
+    html, body, [data-testid="stAppViewContainer"] {
+        overflow: hidden !important;
+        height: 100vh !important;
+    }
 
-    /* [左] 固定看板：宽度锁死在 120px */
+    /* 2. 移除顶部和底部多余空间 */
+    header {visibility: hidden;}
+    .block-container { padding: 0 !important; max-width: 100% !important; height: 100vh !important; }
+    
+    /* 3. 三栏物理占位 - 统一高度，内部自滚动 */
+    [data-testid="stColumn"] {
+        height: 100vh !important;
+        overflow-y: auto !important; /* 只有栏目内部可以滚动 */
+        padding: 20px !important;
+        border-right: 1px solid #333;
+    }
+
+    /* 4. 左侧看板：窄一点，深色背景 */
     [data-testid="stColumn"]:nth-child(1) {
-        position: fixed; left: 0; top: 0; bottom: 0; width: 120px !important;
-        background: #161b22; border-right: 1px solid #333; z-index: 1001; padding-top: 20px !important;
+        flex: 0 0 120px !important;
+        min-width: 120px !important;
+        background: #111;
     }
-    .sticky-stats { position: fixed; left: 10px; bottom: 20px; width: 100px; z-index: 1002; }
-    .nav-item { background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px; padding: 8px; margin-top: 8px; text-align: center; }
-    .nav-val { color: #58a6ff; font-weight: bold; font-size: 16px; }
 
-    /* [中] 生产区：自适应宽度，左右留出物理边距 */
+    /* 5. 中间生产区：主操作台 */
     [data-testid="stColumn"]:nth-child(2) {
-        margin-left: 140px !important; margin-right: 380px !important;
-        width: auto !important; padding: 40px !important; min-height: 100vh;
+        flex: 1 1 auto !important;
+        background: #0d0d0d;
     }
 
-    /* [右] 仓库区：宽度锁死在 360px，独立滚动 */
+    /* 6. 右侧仓库：固定宽度，防止被中间挤没 */
     [data-testid="stColumn"]:nth-child(3) {
-        position: fixed; right: 0; top: 0; bottom: 0; width: 360px !important;
-        background: #0d1117; border-left: 1px solid #333; padding: 30px 20px !important;
-        z-index: 1000; overflow-y: auto !important;
+        flex: 0 0 350px !important;
+        min-width: 350px !important;
+        background: #111;
     }
 
-    /* 💥 碎片卡片样式 (带边框的大爆炸方块) */
+    /* 💥 标签碎块样式优化：让它们更紧凑 */
     [data-testid="stCheckbox"] {
-        background: #1f2428 !important; border: 1px solid #333 !important;
-        padding: 5px 10px !important; border-radius: 6px !important; margin-bottom: 5px !important;
+        background: #1f2428 !important;
+        border: 1px solid #444 !important;
+        padding: 2px 8px !important;
+        margin-bottom: 3px !important;
+        border-radius: 4px !important;
     }
-    /* 勾选后的高亮红色效果 */
-    [data-testid="stCheckbox"]:has(input:checked) {
-        border-color: #ff4b4b !important; background: #2d1b1b !important;
-    }
+    .stTextArea textarea { height: 120px !important; } /* 缩小输入框高度 */
     </style>
 """, unsafe_allow_html=True)
 
@@ -264,6 +275,7 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
 
