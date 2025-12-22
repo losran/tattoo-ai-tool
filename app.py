@@ -82,18 +82,16 @@ col_nav, col_mid, col_lib = st.columns([12, 53, 35])
 
 # 👉 [左侧栏] 资产统计看板
 # 👉 [左侧栏] 资产统计看板
+# 👉 [左侧栏] 定位：搜索 with col_nav
 with col_nav:
     st.markdown("### 🌀") 
-    
-    # 修正点：确保 5 个分类全部统计到位
-    stats_html = '<div class="sticky-stats">'
+    # 重点：所有的 HTML 必须写在一行，不能有物理换行
+    s_html = '<div class="sticky-stats">'
     for k in ["Subject", "Action", "Style", "Mood", "Usage"]:
-        num = len(st.session_state.db.get(k, []))
-        # 修正：移除多余的换行符，确保字符串纯净
-        stats_html += f'<div class="nav-item"><div style="font-size:10px;color:#888">{k}</div><div class="nav-val">{num}</div></div>'
-    stats_html += '</div>'
-    
-    st.markdown(stats_html, unsafe_allow_html=True)
+        n = len(st.session_state.db.get(k, []))
+        s_html += f'<div class="nav-item"><div style="font-size:10px;color:#888">{k}</div><div class="nav-val">{n}</div></div>'
+    s_html += '</div>'
+    st.markdown(s_html, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # 下面开始进入中间生产区，我们先打个招呼，确认位置正确
@@ -271,5 +269,6 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
