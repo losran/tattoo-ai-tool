@@ -36,20 +36,22 @@ def save_to_github(path, data_list):
     except: return False
 
 # --- 3. UI 布局与状态初始化 ---
+st.set_page_config(layout="wide", page_title="Creative Engine")
 st.title("🎨 创意引擎")
 
+# 初始化状态
 for key in ['selected_prompts', 'generated_cache', 'polished_text', 'manual_editor']:
     if key not in st.session_state:
         st.session_state[key] = [] if 'text' not in key else ""
 
 col_main, col_gallery = st.columns([5, 2.5])
 
-# --- 右侧：仓库管理 (支持导入到输入框) ---
+# --- 右侧：仓库管理 (支持导入) ---
 with col_gallery:
     st.subheader("📦 仓库管理")
     mode = st.radio("模式", ["素材仓库", "灵感成品"], horizontal=True)
     if mode == "素材仓库":
-        cat = st.selectbox("当前分类", list(WAREHOUSE.keys()))
+        cat = st.selectbox("分类", list(WAREHOUSE.keys()))
         words = get_github_data(WAREHOUSE[cat])
         if words:
             selected_items = []
@@ -58,88 +60,116 @@ with col_gallery:
                     if st.checkbox(f" {w}", key=f"manage_{cat}_{w}"): selected_items.append(w)
             if selected_items:
                 st.divider()
-                if st.button("➕ 导入到组合输入框", use_container_width=True):
+                if st.button("➕ 导入到输入框", use_container_width=True):
                     existing = st.session_state.manual_editor
                     st.session_state.manual_editor = f"{existing} {' '.join(selected_items)}".strip()
                     st.rerun()
-                if st.button(f"🗑️ 删除所选 {len(selected_items)} 项", type="primary", use_container_width=True):
+                if st.button(f"🗑️ 批量删除所选", type="primary", use_container_width=True):
                     remaining = [w for w in words if w not in selected_items]
                     save_to_github(WAREHOUSE[cat], remaining); st.rerun()
+    else:
+        insps = get_github_data(GALLERY_FILE)
+        if insps:
+            sel_insps = []
+            with st.container(height=500, border=True):
+                for i in insps:
+                    if st.checkbox(i, key=f"del_i_{hash(i)}"): sel_insps.append(i)
+            if sel_insps and st.button("🗑️ 删除勾选灵感", type="primary"):
+                remaining = [i for i in insps if i not in sel_insps]
+                save_to_github(GALLERY_FILE, remaining); st.rerun()
 
 # --- 左侧：核心生成区 ---
 with col_main:
-    # 1. 灵感配置 (始终显示)
+    # 1. 灵感配置
     st.subheader("📝 灵感调配")
     st.session_state.manual_editor = st.text_area("手动编辑或从右侧导入关键词：", value=st.session_state.manual_editor, height=80)
     
-    chaos_level = st.slider("✨ 创意混乱参数 (Chaos)", 0, 100, 50)
+    chaos_level = st.slider("✨ 创意混乱参数 (Chaos Level)", 0, 100, 50)
     
-    c_n1, c_n2 = st.columns([1, 2])
-    with c_n1: num = st.number_input("生成数量", 1, 15, 3)
-    with c_n2:
-        st.caption("快捷设置")
-        q_cols = st.columns(3)
-        if q_cols[0].button("3"): st.session_state.gn = 3
-        if q_cols[1].button("5"): st.session_state.gn = 5
-        if q_cols[2].button("10"): st.session_state.gn = 10
-        if 'gn' in st.session_state: num = st.session_state.gn; del st.session_state.gn
+    # 📍 优化点 1：生成数量与按钮挤在同一行
+    st.write("") # 留点间距
+    col_num, col_trigger = st.columns([1, 3])
+    with col_num:
+        num = st.number_input("生成数量", 1, 15, 3, label_visibility="collapsed")
+    with col_trigger:
+        btn_label = "🔥 激发创意组合"
+        if st.button(btn_label, type="primary", use_container_width=True):
+            st.session_state.polished_text = "" 
+            st.session_state.generated_cache = []
+            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
+            for _ in range(num):
+                manual_words = st.session_state.manual_editor.split()
+                # 混乱参数决定了从仓库抽调多少词
+                extra_count = 1 if chaos_level < 30 else (3 if chaos_level < 70 else 5)
+                extra = [random.choice(db_all[random.choice(list(db_all.keys()))]) for _ in range(extra_count) if any(db_all.values())]
+                st.session_state.generated_cache.append(" + ".join(manual_words + extra))
+            st.rerun()
 
-    if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
-        st.session_state.polished_text = "" # 清空上一次的润色，显示筛选区
-        st.session_state.generated_cache = []
-        db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-        for _ in range(num):
-            manual_words = st.session_state.manual_editor.split()
-            # 简单逻辑：混乱度越高，加入的随机维度越多
-            extra_count = 1 if chaos_level < 30 else (3 if chaos_level < 70 else 5)
-            extra = [random.choice(db_all[random.choice(list(db_all.keys()))]) for _ in range(extra_count) if any(db_all.values())]
-            st.session_state.generated_cache.append(" + ".join(manual_words + extra))
-        st.rerun()
-
-    # 📍 优化点：条件渲染“方案筛选”区
-    # 只有当【有缓存结果】且【还没润色成果】时，才显示筛选列表
+    # 📍 优化点 2：去掉显式按钮，改为“边框高亮”感觉的卡片交互
     if st.session_state.generated_cache and not st.session_state.get('polished_text'):
         st.divider()
-        st.subheader("🎲 方案筛选")
+        st.subheader("🎲 方案筛选 (点击卡片进行选择)")
+        
+        # 注入自定义 CSS 让选中的按钮呈现明显的“高亮边框”感
+        st.markdown("""
+        <style>
+        div[data-testid="stButton"] > button {
+            border: 1px solid #444 !important;
+            padding: 20px !important;
+            height: auto !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+        }
+        /* 选中状态的高亮边框颜色 */
+        div[data-testid="stButton"] > button[kind="primary"] {
+            border: 2px solid #ff4b4b !important;
+            box-shadow: 0 0 10px rgba(255, 75, 75, 0.2) !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         cols = st.columns(2)
         for idx, p in enumerate(st.session_state.generated_cache):
             with cols[idx % 2]:
                 is_sel = p in st.session_state.selected_prompts
-                with st.container(border=True):
-                    st.markdown(f"**组合 {idx+1}** {' ✅' if is_sel else ''}")
-                    st.caption(p)
-                    if st.button("选中" if not is_sel else "取消", key=f"sel_{idx}", use_container_width=True):
-                        if is_sel: st.session_state.selected_prompts.remove(p)
-                        else: st.session_state.selected_prompts.append(p)
-                        st.rerun()
+                # 按钮即卡片，通过 type="primary" 实现高亮
+                #
+                if st.button(
+                    f"方案 {idx+1}\n\n{p}", 
+                    key=f"sel_{idx}", 
+                    use_container_width=True, 
+                    type="primary" if is_sel else "secondary"
+                ):
+                    if is_sel: st.session_state.selected_prompts.remove(p)
+                    else: st.session_state.selected_prompts.append(p)
+                    st.rerun()
 
         if st.session_state.selected_prompts:
-            if st.button("✨ 对已选方案进行 DeepSeek 艺术润色", type="primary", use_container_width=True):
-                with st.spinner("正在构思成品..."):
+            st.write("")
+            if st.button("✨ 确认选择并开始艺术润色", type="primary", use_container_width=True):
+                with st.spinner("DeepSeek 正在根据方案构思成品..."):
                     combined = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
                     system = f"你是一个纹身艺术顾问。将标签转化为中文提示词。混乱度{chaos_level}/100。格式：'**方案X：** 内容'。"
                     res = client.chat.completions.create(model="deepseek-chat", messages=[{"role": "system", "content": system}, {"role": "user", "content": combined}]).choices[0].message.content
                     st.session_state.polished_text = res
                     st.rerun()
 
-    # 📍 优化点：展示最终成果 (润色成功后，这里就是唯一主角)
+    # 最终成果展示
     if st.session_state.get('polished_text'):
         st.divider()
         st.subheader("🎨 艺术润色成品")
         final_content = st.text_area("最终文案预览：", st.session_state.polished_text, height=300)
         
-        c_btn1, c_btn2, c_btn3 = st.columns([1, 1, 1])
+        c_btn1, c_btn2, c_btn3 = st.columns(3)
         with c_btn1:
-            if st.button("💾 存入灵感成品库", use_container_width=True):
+            if st.button("💾 存入灵感库", use_container_width=True):
                 current = get_github_data(GALLERY_FILE)
                 new = [l.strip() for l in final_content.split('\n') if l.strip() and '方案' not in l]
                 current.extend(new); save_to_github(GALLERY_FILE, current); st.success("已存档")
         with c_btn2:
-            if st.button("🚀 发送到自动化跑图", type="primary", use_container_width=True):
+            if st.button("🚀 发送到自动化", type="primary", use_container_width=True):
                 st.session_state.auto_input_cache = final_content
                 st.switch_page("pages/02_automation.py")
         with c_btn3:
-            # 加个“返回”按钮，清空结果，让筛选区重新出现
-            if st.button("🔄 重新筛选/组合", use_container_width=True):
-                st.session_state.polished_text = ""
-                st.rerun()
+            if st.button("🔄 重新调整", use_container_width=True):
+                st.session_state.polished_text = ""; st.rerun()
