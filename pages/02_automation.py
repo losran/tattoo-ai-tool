@@ -3,9 +3,9 @@ import json
 import urllib.parse
 import re
 
-st.set_page_config(layout="wide", page_title="Auto Task")
+st.set_page_config(layout="wide", page_title="Automation")
 
-# --- 1. 你最强的 v15.0 JS 脚本模板 (带全平台适配) ---
+# --- 1. 还原你最强的 MagicPrompt v15.0 全平台适配逻辑 ---
 def generate_v15_script(prompts):
     encoded_data = urllib.parse.quote(json.dumps(prompts))
     return f"""(async function() {{
@@ -20,15 +20,25 @@ def generate_v15_script(prompts):
         el.textContent = text;
     }}
 
+    // v15.0 核心：全能输入框探测器 (含 ChatGPT / Doubao / 镜像站 / Gemini)
     function getInputBox() {{
-        return document.querySelector('#prompt-textarea, div[contenteditable="true"], textarea, .n-input__textarea-el, [placeholder*="输入"], [placeholder*="提问"]');
+        return document.querySelector(
+            '#prompt-textarea, ' + 
+            'div[contenteditable="true"], ' + 
+            'textarea, ' + 
+            '.n-input__textarea-el, ' + 
+            '[placeholder*="输入"], [placeholder*="提问"]'
+        );
     }}
 
+    // v15.0 核心：全能发送按钮探测器 (智能排除停止按钮)
     function getSendBtn() {{
         let btns = Array.from(document.querySelectorAll('button, [role="button"], i'));
         return btns.find(b => {{
             const t = (b.innerText || b.ariaLabel || b.className || "").toLowerCase();
-            return (t.includes('发') || t.includes('send')) && !t.includes('新') && !t.includes('stop') && b.offsetParent !== null;
+            const isSend = t.includes('发') || t.includes('send') || (b.tagName === 'I' && t.includes('send')) || b.getAttribute('data-testid') === 'send-button';
+            const isStop = t.includes('stop') || t.includes('停止');
+            return isSend && !isStop && b.offsetParent !== null && !b.disabled;
         }});
     }}
 
@@ -39,58 +49,63 @@ def generate_v15_script(prompts):
         }});
     }}
 
-    showStatus("🤖 纹身大师自动化启动...");
+    showStatus("🤖 纹身大师 v15.0 全能中控启动...");
     for (let i = 0; i < tasks.length; i++) {{
         if (window.kill) break;
-        showStatus("✍️ 正在输入任务: " + (i+1) + " / " + tasks.length);
+        showStatus("✍️ 正在输入: " + (i+1) + " / " + tasks.length, "#3b82f6");
         let box = getInputBox();
-        if (!box) {{ showStatus("❌ 找不到输入框", "#ef4444"); break; }}
+        if (!box) {{ showStatus("❌ 找不到输入框 (请点一下对话框)", "#ef4444"); break; }}
+        
         box.focus();
         document.execCommand('insertText', false, tasks[i]);
         await new Promise(r => setTimeout(r, 1000));
         box.dispatchEvent(new Event('input', {{ bubbles: true }}));
+        
         let sendBtn = getSendBtn();
         if (sendBtn) sendBtn.click();
         
         if (i < tasks.length - 1) {{
             await new Promise(r => setTimeout(r, 3000));
-            let waitTime = 0;
+            let wait = 0;
             while(isGenerating() && !window.kill) {{
-                showStatus("🎨 AI 作画中 (" + waitTime + "s)...", "#8b5cf6");
+                showStatus("🎨 AI 作画中 (" + wait + "s)...", "#8b5cf6");
                 await new Promise(r => setTimeout(r, 1000));
-                waitTime++;
-                if (waitTime > 200) break;
+                wait++;
+                if (wait > 180) break;
             }}
-            showStatus("⏳ 冷却中...", "#f59e0b");
+            showStatus("⏳ 冷却 5s 以防频率过快...", "#f59e0b");
             await new Promise(r => setTimeout(r, 5000));
         }}
     }}
     showStatus("🎉 任务全部完成！", "#10b981");
 }})();"""
 
-# --- 2. 界面设计 ---
 st.title("🤖 自动化任务分发中控")
 
+# --- 接收逻辑 ---
 default_text = st.session_state.get('auto_input_cache', "")
-user_input = st.text_area("在此粘贴或编辑提示词：", value=default_text, height=350)
+user_input = st.text_area("检查待处理的提示词：", value=default_text, height=350)
 
-if st.button("🚀 生成全能脚本 (F12)", type="primary", use_container_width=True):
-    # 【智能拆分】：使用正则匹配 **方案一：** 这种块
-    # 逻辑：只要看到“方案”和冒号，就认为是一个新任务的开始
+# --- 智能拆分逻辑 (修复 11 个任务的问题) ---
+if st.button("🚀 生成全能适配脚本 (去目标站按F12)", type="primary", use_container_width=True):
+    # 改为按“方案”关键字拆分
+    import re
     blocks = re.split(r'\*\*方案[一二三四五六七八九十\d]+[:：].*?\*\*', user_input)
-    
-    # 清洗掉多余的星号和换行，变成适合跑图的单行
     task_list = [b.strip().replace('* ', '').replace('\n', ' ') for b in blocks if len(b.strip()) > 5]
     
     if task_list:
         st.divider()
         st.subheader(f"📦 待处理任务: {len(task_list)} 条")
         
-        # 生成 JS 代码
-        final_js = generate_v15_script(task_list)
+        # 指引
+        st.warning("👉 **复制后操作步骤**：\\n1. 点击下方代码框右上角复制 \\n2. 打开绘图站(ChatGPT/豆包)按 **F12** \\n3. 找到 **Console (控制台)** 粘贴并回车。")
         
-        # 醒目的操作指引
-        st.warning("👉 **操作指引**：\n1. 点击下方代码框右上角的 **复制** 按钮。\n2. 打开跑图网站，按键盘上的 **F12**。\n3. 点击 **Console (控制台)**，粘贴代码并回车。")
-        st.code(final_js, language="javascript")
+        # 脚本展示
+        js_code = generate_v15_script(task_list)
+        st.code(js_code, language="javascript")
     else:
-        st.error("无法识别任务，请确保格式包含类似 '**方案一：**' 的字样。")
+        st.error("无法识别内容，请确保包含 '**方案一：**' 字样")
+
+if st.button("🗑️ 清空当前任务流"):
+    st.session_state.auto_input_cache = ""
+    st.rerun()
