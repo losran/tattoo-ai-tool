@@ -127,26 +127,32 @@ if st.button("🚀 开始 AI 拆解", type="primary", use_container_width=True):
                 with st.spinner("DeepSeek 正在解析五维结构..."):
                     # --- 💡 核心修改：Prompt 2.0 (针对纹身贴优化版) ---
                     prompt = f"""
-                    你是一位【资深纹身贴纸设计师 (Senior Tattoo Sticker Designer)】。
-                    请将用户的描述转化为【Midjourney 绘画提示词元素】，并严格填入五维模型。
-
-                    【核心原则 - 必须遵守】：
-                    1. **材质锁定**：所有设计必须是 "Tattoo Sticker" (纹身贴) 质感。必须包含关键词：white background (白底), die-cut (模切), clean lines (干净线条), vector style (矢量风格), skin-safe ink look (纹身墨水质感)。
-                    2. **拒绝插画感**：严禁复杂的背景、严禁过度的光影渲染、严禁相框或纸张展示。只保留图案本身。
-                    3. **创意升维**：如果用户描述很简单（如"一只猫"），你必须根据 "Alien Mood" (外星情绪) 的品牌调性（酷、Y2K、怪诞、极简）进行艺术扩写。例如将"猫"扩写为"液态金属质感的猫"或"X光透视风格的猫"。
-
+                                        你是一位【资深纹身贴纸设计师】，只使用中文进行专业设计表达。
+                    
+                    请将用户的描述，转化为【适用于 Midjourney 的设计语义拆解】，并严格填入五维模型。
+                    
+                    【语言强制规则 - 必须遵守】：
+                    1. 最终输出内容必须 100% 为中文。
+                    2. 不允许出现任何英文单词、字母、缩写。
+                    3. 所有风格、材质、情绪，必须使用设计行业常用中文表达。
+                    4. 禁止音译，禁止保留英文原词。
+                    
+                    【核心原则】：
+                    1. 材质锁定：必须体现为“纹身贴”，白底、模切、干净线条、矢量感、安全墨水质感。
+                    2. 拒绝插画感：无背景、无光影渲染、只保留图案主体。
+                    3. 创意升维：在用户描述基础上，注入「外星情绪」调性（冷感、怪诞、未来、极简）。
+                    
                     【五维模型定义】：
-                    1. Subject (主体): 具体的视觉主体 + 材质修饰词 (如: Chromatic liquid snake, Pixel art heart)。
-                    2. Action (动态): 主体的形态或交互 (如: Entangled with wires, Melting down, Floating)。
-                    3. Style (风格): 具体的艺术流派 (如: Y2K, Cyberpunk, Neo-tribal, Minimalist line art)。
-                    4. Mood (氛围): 情感色彩 (如: Ethereal, Edgy, Mysterious)。
-                    5. Usage (部位): 推荐贴的位置 (如: Arm, Neck, Ankle)。
-
+                    Subject（主体）：具体视觉主体 + 材质修饰
+                    Action（动态）：形态变化或交互状态
+                    Style（风格）：明确的视觉设计风格
+                    Mood（情绪）：整体情感气质
+                    Usage（部位）：推荐贴附位置
+                    
                     【原文】：{user_text}
-
-                    【输出格式要求】：
-                    Subject:Chrome Metal Heart|Action:Melting and dripping|Style:Y2K Acid Graphics|Mood:Cool and Edgy|Usage:Arm
-                    (注意：用|分隔，不要换行，不要加序号，请直接输出英文结果以便 MJ 识别，但保留冒号前的英文分类名)
+                    
+                    【输出格式】：
+                    Subject:液态金属质感的机械心脏|Action:正在融化并向下滴落|Style:Y2K 酸性未来图形风格|Mood:冷感、锋利、叛逆|Usage:手臂
                     """
                     try:
                         res = client.chat.completions.create(
@@ -208,5 +214,6 @@ if st.session_state.is_open:
                             st.rerun()
         else:
             st.caption("该分类暂无数据")
+
 
 
