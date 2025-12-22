@@ -88,7 +88,7 @@ with col_main:
         save_to_github(GALLERY_FILE, current)
         st.success("已存入 gallery/inspirations.txt！")
         
-if st.session_state.polished_text:
+if st.session_state.get('polished_text'):
             st.success("✅ 润色完成")
             # 这里的文本框让你能看，也能手动改
             final_content = st.text_area("最终成果预览：", st.session_state.polished_text, height=200)
