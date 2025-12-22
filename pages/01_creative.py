@@ -47,22 +47,67 @@ col_main, col_gallery = st.columns([5, 2])
 
 # --- 右侧：资产预览 (素材仓库) ---
 with col_gallery:
-    st.subheader("📦 资产预览")
+    st.subheader("📦 仓库管理")
+    
+    # 模式切换
     mode = st.radio("模式", ["素材仓库", "灵感成品"], horizontal=True)
-    with st.container(height=600):
-        if mode == "素材仓库":
-            cat = st.selectbox("分类", list(WAREHOUSE.keys()))
-            words = get_github_data(WAREHOUSE[cat])
-            if words:
-                for w in words: st.button(w, key=f"w_{w}", use_container_width=True)
-            else:
-                st.caption("仓库空空如也")
+    
+    if mode == "素材仓库":
+        # 1. 选择分类
+        cat = st.selectbox("选择要管理的分类", list(WAREHOUSE.keys()))
+        file_path = WAREHOUSE[cat]
+        
+        # 2. 读取当前分类的所有单词
+        all_words = get_github_data(file_path)
+        
+        if all_words:
+            # 3. 多选框：选择想要删除的标签
+            to_delete = st.multiselect(
+                f"选择要删除的 {cat} (可多选)", 
+                options=all_words,
+                help="勾选后点击下方删除按钮"
+            )
+            
+            # 4. 删除按钮
+            if to_delete:
+                if st.button(f"🗑️ 确认删除这 {len(to_delete)} 个标签", type="primary", use_container_width=True):
+                    # 过滤掉被选中的词
+                    new_words = [w for w in all_words if w not in to_delete]
+                    
+                    with st.spinner("正在同步至 GitHub..."):
+                        if save_to_github(file_path, new_words):
+                            st.success("删除成功！")
+                            time.sleep(1) # 停顿一下让用户看清提示
+                            st.rerun() # 强制刷新页面显示新列表
+                        else:
+                            st.error("同步失败，请检查网络")
+            
+            st.divider()
+            
+            # 5. 列表展示（方便复制或查看）
+            st.caption(f"当前共有 {len(all_words)} 个标签：")
+            with st.container(height=400):
+                for w in all_words:
+                    st.text(f"• {w}")
         else:
-            insps = get_github_data(GALLERY_FILE)
-            if insps:
-                for i in insps: st.write(f"· {i}")
-            else:
-                st.caption("灵感库为空")
+            st.info("该分类暂无数据")
+            
+    else:
+        # 灵感成品管理逻辑 (类似)
+        insps = get_github_data(GALLERY_FILE)
+        if insps:
+            to_delete_insp = st.multiselect("选择要删除的灵感", options=insps)
+            if to_delete_insp and st.button("🗑️ 确认删除选中的灵感", type="primary"):
+                new_insps = [i for i in insps if i not in to_delete_insp]
+                if save_to_github(GALLERY_FILE, new_insps):
+                    st.success("已清理")
+                    st.rerun()
+            
+            with st.container(height=500):
+                for i in insps:
+                    st.write(f"· {i}")
+        else:
+            st.caption("灵感库为空")
 
 # --- 左侧：核心生成区 ---
 with col_main:
