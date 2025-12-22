@@ -148,23 +148,25 @@ with col_mid:
                         
                 except Exception as e:
                     st.error(f"📡 网络或接口异常: {e}")# 3. 🏁 碎片预览区 (只有当 pre_tags 有数据时才显示)
-    # 👉 定位：搜索 if st.session_state.pre_tags:
+    # --- 定位：搜索 if st.session_state.pre_tags: ---
     if st.session_state.pre_tags:
         st.write("---")
-        st.subheader("📋 碎片预览")
-        
-        save_list = []
-        order = ["Subject", "Action", "Style", "Mood", "Usage"]
-        
-        for display_cat in order:
-            words = [t for t in st.session_state.pre_tags if t['cat'] == display_cat]
-            if words:
-                st.markdown(f"**📍 {display_cat}**")
-                # --- 关键改变：直接循环，不要再套 columns(3) 了 ---
-                for i, w in enumerate(words):
-                    tag_id = f"pre_{display_cat}_{i}_{st.session_state.input_id}"
-                    if st.checkbox(w['val'], value=True, key=tag_id):
-                        save_list.append(w)
+        # 用一个 container 锁死碎片的爆炸范围
+        with st.container():
+            save_list = []
+            order = ["Subject", "Action", "Style", "Mood", "Usage"]
+            
+            for display_cat in order:
+                words = [t for t in st.session_state.pre_tags if t['cat'] == display_cat]
+                if words:
+                    # 给分类加点颜色感
+                    st.markdown(f"**🏷️ {display_cat}**")
+                    
+                    # 💥 关键：这里直接写循环，上面的 CSS 会把它们横向炸开
+                    for i, w in enumerate(words):
+                        tag_id = f"pre_{display_cat}_{i}_{st.session_state.input_id}"
+                        if st.checkbox(w['val'], value=True, key=tag_id):
+                            save_list.append(w)
                 st.write("") # 分类间留点空隙
         # --- 下面是两个并排的按钮：入库 和 扫走 ---
         btn_cols = st.columns(2)
@@ -249,6 +251,7 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
 
