@@ -1,42 +1,65 @@
+# style_manager.py
 import streamlit as st
 
 def apply_pro_style():
-    # 这里就是你的“视觉控制面板”
+    # 1. 视觉装修：放大左侧导航文字，移除冗余
     st.markdown("""
     <style>
-        /* 1. 优化文字排版：增加行间距，告别拥挤 */
-        html, body, [data-testid="stWidgetLabel"] {
-            line-height: 1.8 !important; /* 撑开行高，质感立刻提升 */
-            letter-spacing: 0.05em !important; /* 增加字间距 */
+        .stApp { background-color: #0f1014; }
+        
+        /* 📍 放大左侧侧边栏页码导航文字 */
+        [data-testid="stSidebarNav"] ul li div p {
+            font-size: 18px !important; 
+            font-weight: 600 !important;
+            color: #c9d1d9 !important;
+            padding: 5px 0;
+        }
+        
+        /* 侧边栏整体宽度调整 */
+        section[data-testid="stSidebar"] {
+            min-width: 200px !important;
         }
 
-        /* 2. 统一卡片样式：磨砂玻璃感 */
-        div[data-testid="stButton"] > button {
-            border: 1px solid #30363d !important;
-            border-radius: 12px !important;
-            background-color: #161b22 !important;
-            padding: 15px !important;
-            transition: 0.3s ease !important;
+        /* 统计文字样式 */
+        .sidebar-footer {
+            position: fixed;
+            bottom: 20px;
+            width: 160px;
         }
-
-        /* 3. 统一选中高亮：红色霓虹边框 */
-        div[data-testid="stButton"] > button[kind="primary"] {
-            border: 2px solid #ff4b4b !important;
-            box-shadow: 0 0 15px rgba(255, 75, 75, 0.2) !important;
-            background-color: #211d1d !important;
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #8b949e;
+            margin-bottom: 8px;
+            font-family: monospace;
         }
-
-        /* 4. 文本框美化：深色背景 + 呼吸边框 */
-        .stTextArea textarea {
-            background-color: #0d1117 !important;
-            border: 1px solid #30363d !important;
-            border-radius: 10px !important;
-            padding: 12px !important;
+        .metric-row span:last-child {
+            color: #ffffff;
+            font-weight: bold;
         }
-
-        /* 5. 隐藏 Streamlit 官方自带的杂乱水印 */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
+
+# 2. 📍 新增：全站统一侧边栏渲染函数
+def render_unified_sidebar(counts_dict):
+    with st.sidebar:
+        # 顶部的 Logo 区域
+        st.markdown("### 🛰️ ALIEN MOOD")
+        st.caption("Frame...")
+        
+        # 留出空间给导航
+        st.markdown("<br>" * 10, unsafe_allow_html=True)
+        
+        # 底部统计状态 (不管哪个页面都显示)
+        st.divider()
+        st.markdown("**统计状态**")
+        for label, val in counts_dict.items():
+            st.markdown(f'''
+                <div class="metric-row">
+                    <span>{label}:</span>
+                    <span>{val}</span>
+                </div>
+            ''', unsafe_allow_html=True)
+        
+        # 彻底删掉登录按钮
