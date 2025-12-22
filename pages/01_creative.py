@@ -1,4 +1,8 @@
 import streamlit as st
+from style_manager import apply_pro_style
+
+# 📍 傻瓜调用：全站视觉一键同步
+apply_pro_style()
 import requests, base64, random, time
 from openai import OpenAI
 
