@@ -133,87 +133,75 @@ with col_nav:
 # (复制到这里结束)
     
 # 👉 中间：操作
+# 👉 中间：操作核心区
 with col_mid:
     st.title("✨ 智能提取入库")
     
-    # 输入框 (动态ID清空)
-    user_input = st.text_area("输入样板提示词", height=150, placeholder="在此输入...", key=f"input_{st.session_state.input_id}")
+    # 1. 输入框 (使用动态 key，解析成功后会自动清空)
+    user_input = st.text_area(
+        "输入样板提示词", 
+        height=150, 
+        placeholder="在此粘贴文本，点击下方拆分...", 
+        key=f"input_{st.session_state.input_id}"
+    )
     
+    # 2. 拆分按钮
     if st.button("🔍 开始 AI 拆分", type="primary"):
         if user_input:
-            with st.spinner("AI 思考中..."):
+            with st.spinner("AI 解析中..."):
                 try:
-                    # 强力 Prompt：要求 AI 必须按格式，否则不通过
                     res = client.chat.completions.create(
                         model="deepseek-chat",
                         messages=[
-                            {"role": "system", "content": "你是一个提取工具。请严格按此格式输出：主体:内容|风格:内容|部位:内容|氛围:内容。若无相关内容则跳过。不要说废话。"},
+                            {"role": "system", "content": "格式:分类:词|分类:词。分类限:主体,风格,部位,氛围。"},
                             {"role": "user", "content": user_input}
-                        ],
-                        temperature=0.1
+                        ]
                     ).choices[0].message.content
                     
-                    # 容错解析逻辑
-                    parsed = []
-                    # 将换行符也视为分隔符
-                    parts = res.replace("\n", "|").split("|")
-                    for p in parts:
-                        # 兼容中文冒号和英文冒号
-                        p = p.replace("：", ":")
-                        if ":" in p:
-                            k, v = p.split(":", 1)
-                            clean_k = k.strip()
-                            clean_v = v.strip()
-                            # 模糊匹配分类
-                            valid_cat = None
-                            if "主体" in clean_k: valid_cat = "主体"
-                            elif "风格" in clean_k: valid_cat = "风格"
-                            elif "部位" in clean_k: valid_cat = "部位"
-                            elif "氛围" in clean_k: valid_cat = "氛围"
-                            
-                            if valid_cat and clean_v:
-                                parsed.append({"cat": valid_cat, "val": clean_v, "ok": True})
+                    # 容错解析
+                    st.session_state.pre_tags = [
+                        {"cat": p.split(":")[0].strip(), "val": p.split(":")[1].strip()} 
+                        for p in res.replace("：", ":").split("|") if ":" in p
+                    ]
                     
-                    if parsed:
-                        st.session_state.pre_tags = parsed
-                        st.session_state.input_id += 1 # 清空输入框
+                    if st.session_state.pre_tags:
+                        # 成功解析后，增加 ID 从而清空输入框
+                        st.session_state.input_id += 1 
                         st.rerun()
-                    else:
-                        st.error(f"AI返回了内容，但无法识别格式。原始返回：{res}")
-                        
                 except Exception as e:
-                    st.error(f"连接出错: {e}")
+                    st.error(f"解析失败: {e}")
 
-    # 预览与入库区域
-# [请确保这段代码缩进在 with col_mid: 的内部]
-    
-    # 3. 结果预览与按钮组
- # 👉 以下所有内容必须在 with col_mid: 内部，请确保前面有 4 或 8 个空格
-        if st.session_state.pre_tags:
-            st.markdown("---")
-            st.subheader("确认拆解结果")
-            
-            save_list = []
-            for i, tag in enumerate(st.session_state.pre_tags):
-                if st.checkbox(f"【{tag['cat']}】{tag['val']}", value=True, key=f"chk_{i}"):
-                    save_list.append(tag)
-            
-            st.write("")
-            
-            # ⚠️ 关键点：这两行前面必须有缩进！
-             c_btn_a, c_btn_b = st.columns([1, 2]) 
-            
-            with c_btn_a:
-                # 放弃按钮：现在它属于 c_btn_a，c_btn_a 又属于 col_mid
-                if st.button("🧹 放弃", use_container_width=True):
-                    st.session_state.pre_tags = []
-                    st.rerun()
-                    
-            with c_btn_b:
-                # 入库按钮
-                if st.button("🚀 一键入云库", type="primary", use_container_width=True):
-                    # ... (此处省略同步逻辑代码)
-                    st.rerun()
+    # 3. 结果预览与操作按钮 (这里通过缩进保证它们留在中间)
+    if st.session_state.pre_tags:
+        st.markdown("---")
+        st.subheader("📋 确认拆解结果")
+        
+        save_list = []
+        for i, tag in enumerate(st.session_state.pre_tags):
+            if st.checkbox(f"【{tag['cat']}】{tag['val']}", value=True, key=f"chk_{i}"):
+                save_list.append(tag)
+        
+        st.write("")
+        
+        # ⚠️ 按钮组：两列布局，锁死在中间栏底部
+        c_btn_a, c_btn_b = st.columns([1, 2]) 
+        
+        with c_btn_a:
+            if st.button("🧹 放弃", use_container_width=True):
+                st.session_state.pre_tags = []
+                st.rerun()
+                
+        with c_btn_b:
+            if st.button("🚀 一键入云库", type="primary", use_container_width=True):
+                f_map = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}
+                for t in save_list:
+                    if t['val'] not in st.session_state.db[t['cat']]:
+                        st.session_state.db[t['cat']].append(t['val'])
+                        sync_git(f_map[t['cat']], st.session_state.db[t['cat']])
+                st.session_state.pre_tags = []
+                st.success("已存入云端！")
+                time.sleep(1)
+                st.rerun()
                 
 # 👉 右侧：资产库 (使用原生组件确保可见性)
 with col_lib:
@@ -250,6 +238,7 @@ with col_lib:
         st.info("暂无数据")
     
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
