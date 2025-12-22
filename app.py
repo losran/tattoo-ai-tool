@@ -105,43 +105,34 @@ with col_mid:
                 st.rerun()
 
 # --- 💥 碎片预览区：精准替换这段 ---
-    if st.session_state.pre_tags:
-        st.write("---")
-        st.subheader("📋 碎片预览 (勾选想要入库的)")
-        
-        save_list = []
-        # 强制分分类展示，确保看得见
-        for cat in ["主体", "风格", "部位", "氛围"]:
-            words = [t for t in st.session_state.pre_tags if t['cat'] == cat]
-            if words:
-                st.markdown(f"**📍 {cat}**")
-                # 使用 columns 炸开碎片
-                cols = st.columns(3) 
-                for i, w in enumerate(words):
-                    # 使用动态 key 强制 Streamlit 刷新视图
-                    with cols[i % 3]:
-                        chk_key = f"pre_{cat}_{i}_{st.session_state.input_id}"
-                        if st.checkbox(w['val'], value=True, key=chk_key):
-                            save_list.append(w)
-        
-        st.write("")
-        # 按钮组：确保它们留在 col_mid 底部
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("🚀 一键入云库", type="primary", use_container_width=True):
-                f_map = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}
-                for t in save_list:
-                    if t['val'] not in st.session_state.db[t['cat']]:
-                        st.session_state.db[t['cat']].append(t['val'])
-                        sync_git(f_map[t['cat']], st.session_state.db[t['cat']])
-                st.session_state.pre_tags = []
-                st.success("入库成功")
-                time.sleep(1)
-                st.rerun()
-        with c2:
-            if st.button("🧹 放弃清空", use_container_width=True):
-                st.session_state.pre_tags = []
-                st.rerun()
+# 2. 拆解按钮逻辑 (精准替换这一段)
+    if st.button("🔍 立即炸开碎片", type="primary", use_container_width=True):
+        if raw:
+            with st.spinner("💥 正在碎裂文案..."):
+                # 获取 AI 结果
+                res = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[{"role": "system", "content": "要求：分类:短词|分类:短词。分类限:主体,风格,部位,氛围。词要拆成极细。"}, {"role": "user", "content": raw}],
+                    temperature=0.3
+                ).choices[0].message.content
+                
+                # 简单解析逻辑 (不带 try)
+                parsed = []
+                for p in res.replace("：", ":").replace("，", "|").replace("\n", "|").split("|"):
+                    if ":" in p:
+                        k, v = p.split(":", 1)
+                        key = k.strip()
+                        if key in ["主体", "风格", "部位", "氛围"]:
+                            words = v.replace("、", "/").replace(",", "/").split("/")
+                            for w in words:
+                                if w.strip():
+                                    parsed.append({"cat": key, "val": w.strip()})
+                
+                # 关键：赋值并强制刷新
+                if parsed:
+                    st.session_state.pre_tags = parsed
+                    st.session_state.input_id += 1 # 触发输入栏清空
+                    st.rerun() # <-- 这句是“炸开”碎片的引信，必须有！
 
 # 👉 右：仓库管理
 with col_lib:
@@ -162,4 +153,5 @@ with col_lib:
                 sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[cat], st.session_state.db[cat])
                 st.rerun()
     else: st.caption("空空如也")
+
 
