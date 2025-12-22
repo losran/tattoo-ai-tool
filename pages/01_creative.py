@@ -187,26 +187,39 @@ with col_main:
 # 3. 激发按钮
         with c_btn:
             if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
-                # 🔴 关键修正 1：只清空“候选池”，不清空你已经选中的！
+                # 🔴 修正1：必须清空“候选池”，防止点一次加8个，变成16个
                 st.session_state.mix_candidates = [] 
                 
-                import random
-                # 检查仓库是否有货
+                # 使用缓存的数据库 (st.session_state.db) 速度更快，不用每次请求 GitHub
                 if any(st.session_state.db.values()):
                     for _ in range(mix_num):
-                        combo = []
-                        # 随机抽取逻辑
-                        for cat, items in st.session_state.db.items():
-                            if items and random.random() < 0.7: 
-                                combo.append(random.choice(items))
+                        # --- 👇 这里完全保留你的算法逻辑 ---
                         
-                        # 保底逻辑
-                        if not combo: 
-                            all_items = [i for v in st.session_state.db.values() for i in v]
-                            if all_items: combo.append(random.choice(all_items))
-                            
-                        # 🔴 关键修正 2：存入候选池，而不是直接存入选中列表
-                        st.session_state.mix_candidates.append(" + ".join(combo))
+                        # 1. 获取手动输入 (兼容上下文变量 input_val)
+                        raw_input = st.session_state.get('input_val', "")
+                        manual_words = raw_input.split() if isinstance(raw_input, str) else []
+                        
+                        # 2. 混乱度决定抓取数量
+                        extra_count = 2 if chaos_level < 30 else (4 if chaos_level < 70 else 6)
+                        extra = []
+                        
+                        # 3. 随机抓取
+                        import random
+                        # 筛选出有内容的分类，防止报错
+                        valid_cats = [k for k, v in st.session_state.db.items() if v]
+                        
+                        if valid_cats:
+                            for _ in range(extra_count):
+                                random_cat = random.choice(valid_cats)
+                                extra.append(random.choice(st.session_state.db[random_cat]))
+                        
+                        # 4. 组合
+                        combined_p = " + ".join(filter(None, manual_words + extra))
+                        
+                        # --- 👆 你的逻辑结束 ---
+
+                        # 🔴 修正2：存入 mix_candidates (为了让下面的红/灰交互生效)
+                        st.session_state.mix_candidates.append(combined_p)
                     
                     st.toast(f"已生成 {len(st.session_state.mix_candidates)} 个新灵感！")
                     st.rerun()
