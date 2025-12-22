@@ -184,32 +184,34 @@ with col_main:
         # 数字输入框
         num = st.number_input("数量", 1, 15, 3, label_visibility="collapsed")
         
-    with col_trigger:
-        do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
-        
-        if do_generate:
-            st.session_state.polished_text = "" 
-            st.session_state.generated_cache = []
-            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-            
-            if not any(db_all.values()):
-                st.error("仓库里没词，没法自动跑啊哥们！")
-            else:
-                for _ in range(num):
-                    raw_input = st.session_state.get('manual_editor', "")
-                    manual_words = raw_input.split() if isinstance(raw_input, str) else []
+# 3. 激发按钮
+        with c_btn:
+            if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
+                # 🔴 关键修正 1：只清空“候选池”，不清空你已经选中的！
+                st.session_state.mix_candidates = [] 
+                
+                import random
+                # 检查仓库是否有货
+                if any(st.session_state.db.values()):
+                    for _ in range(mix_num):
+                        combo = []
+                        # 随机抽取逻辑
+                        for cat, items in st.session_state.db.items():
+                            if items and random.random() < 0.7: 
+                                combo.append(random.choice(items))
+                        
+                        # 保底逻辑
+                        if not combo: 
+                            all_items = [i for v in st.session_state.db.values() for i in v]
+                            if all_items: combo.append(random.choice(all_items))
+                            
+                        # 🔴 关键修正 2：存入候选池，而不是直接存入选中列表
+                        st.session_state.mix_candidates.append(" + ".join(combo))
                     
-                    # 📍 自动补充逻辑：混乱度决定了从仓库抓多少词 (即使 manual 为空也能跑)
-                    extra_count = 2 if chaos_level < 30 else (4 if chaos_level < 70 else 6)
-                    extra = []
-                    for _ in range(extra_count):
-                        random_cat = random.choice(list(db_all.keys()))
-                        if db_all[random_cat]:
-                            extra.append(random.choice(db_all[random_cat]))
-                    
-                    combined_p = " + ".join(filter(None, manual_words + extra))
-                    st.session_state.generated_cache.append(combined_p)
-                st.rerun()
+                    st.toast(f"已生成 {len(st.session_state.mix_candidates)} 个新灵感！")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ 仓库空的！请先去 Tab 1 拆解一些素材入库。")
 
     # 📍 方案筛选区 (注入高亮 CSS)
     if st.session_state.generated_cache and not st.session_state.get('polished_text'):
