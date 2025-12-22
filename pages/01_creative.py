@@ -2,7 +2,7 @@ import streamlit as st
 import requests, base64, random, time
 from openai import OpenAI
 
-# --- 1. 配置 ---
+# --- 1. 核心配置 (请确保 Secrets 已配置) ---
 client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO = "losran/tattoo-ai-tool"
@@ -39,23 +39,22 @@ def save_to_github(path, data_list):
 st.set_page_config(layout="wide", page_title="Creative Engine")
 st.title("🎨 创意引擎")
 
-# 初始化状态
-# 📍 定位：修正初始化逻辑，确保 manual_editor 是文字不是列表
+# 📍 修正初始化逻辑：确保 manual_editor 是字符串不是列表 []
 for key in ['selected_prompts', 'generated_cache', 'polished_text', 'manual_editor']:
     if key not in st.session_state:
-        # 只要名字里带 text 或 editor，就给空字符串 ""
-        if 'text' in key or 'editor' in key:
+        if 'editor' in key or 'text' in key:
             st.session_state[key] = ""
         else:
             st.session_state[key] = []
+
 col_main, col_gallery = st.columns([5, 2.5])
 
-# --- 右侧：仓库管理 ---
+# --- 右侧：仓库管理 (支持导入到输入框) ---
 with col_gallery:
     st.subheader("📦 仓库管理")
     mode = st.radio("模式", ["素材仓库", "灵感成品"], horizontal=True)
     if mode == "素材仓库":
-        cat = st.selectbox("分类", list(WAREHOUSE.keys()))
+        cat = st.selectbox("当前分类", list(WAREHOUSE.keys()))
         words = get_github_data(WAREHOUSE[cat])
         if words:
             selected_items = []
@@ -64,11 +63,13 @@ with col_gallery:
                     if st.checkbox(f" {w}", key=f"manage_{cat}_{w}"): selected_items.append(w)
             if selected_items:
                 st.divider()
-                if st.button("➕ 导入到输入框", use_container_width=True):
+                # 导入功能
+                if st.button("➕ 导入到组合输入框", use_container_width=True):
                     existing = st.session_state.manual_editor
                     st.session_state.manual_editor = f"{existing} {' '.join(selected_items)}".strip()
                     st.rerun()
-                if st.button(f"🗑️ 批量删除所选", type="primary", use_container_width=True):
+                # 删除功能
+                if st.button(f"🗑️ 删除选中的 {len(selected_items)} 项", type="primary", use_container_width=True):
                     remaining = [w for w in words if w not in selected_items]
                     save_to_github(WAREHOUSE[cat], remaining); st.rerun()
     else:
@@ -90,44 +91,46 @@ with col_main:
     
     chaos_level = st.slider("✨ 创意混乱参数 (Chaos Level)", 0, 100, 50)
     
-    # 📍 调整：数字框放到按钮右边，紧凑布局
+    # 📍 生成数量按钮组：左按钮占 4，右数字占 1
     st.write("") 
-
-# 📍 定位：激发按钮与数字框。右侧数字占 1 份，左侧按钮占 4 份
     col_trigger, col_num = st.columns([4, 1])
     
     with col_num:
-        # 先定义数字框，让程序提前记住这个数字
+        # 数字输入框
         num = st.number_input("数量", 1, 15, 3, label_visibility="collapsed")
         
     with col_trigger:
-        if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
+        do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
+        
+        if do_generate:
             st.session_state.polished_text = "" 
             st.session_state.generated_cache = []
             db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
             
-            # 使用上面刚刚定义的 num
-            for _ in range(num):
-                raw_input = st.session_state.get('manual_editor', "")
-                # 强行确保它是字符串再拆分，彻底解决 [] 报错
-                manual_words = raw_input.split() if isinstance(raw_input, str) else []
-                
-                extra_count = 1 if chaos_level < 30 else (3 if chaos_level < 70 else 5)
-                extra = [random.choice(db_all[random.choice(list(db_all.keys()))]) for _ in range(extra_count) if any(db_all.values())]
-                st.session_state.generated_cache.append(" + ".join(manual_words + extra))
-            st.rerun()
+            if not any(db_all.values()):
+                st.error("仓库里没词，没法自动跑啊哥们！")
+            else:
+                for _ in range(num):
+                    raw_input = st.session_state.get('manual_editor', "")
+                    manual_words = raw_input.split() if isinstance(raw_input, str) else []
+                    
+                    # 📍 自动补充逻辑：混乱度决定了从仓库抓多少词 (即使 manual 为空也能跑)
+                    extra_count = 2 if chaos_level < 30 else (4 if chaos_level < 70 else 6)
+                    extra = []
+                    for _ in range(extra_count):
+                        random_cat = random.choice(list(db_all.keys()))
+                        if db_all[random_cat]:
+                            extra.append(random.choice(db_all[random_cat]))
+                    
+                    combined_p = " + ".join(filter(None, manual_words + extra))
+                    st.session_state.generated_cache.append(combined_p)
+                st.rerun()
 
-    # 点击逻辑更新
-    if do_generate:
-        st.session_state.polished_text = "" 
-        st.session_state.generated_cache = []
-        # ...（保持之前的生成逻辑不变）...
-    # 📍 交互：边框高亮代替选中文字
+    # 📍 方案筛选区 (注入高亮 CSS)
     if st.session_state.generated_cache and not st.session_state.get('polished_text'):
         st.divider()
         st.subheader("🎲 方案筛选 (点击卡片进行调配)")
         
-        # 注入更强烈的边框高亮 CSS
         st.markdown("""
         <style>
         div[data-testid="stButton"] > button {
@@ -135,11 +138,9 @@ with col_main:
             padding: 24px !important;
             height: auto !important;
             text-align: left !important;
-            line-height: 1.5 !important;
             background-color: #1e1e1e !important;
             transition: 0.2s !important;
         }
-        /* 选中状态：红边框 + 轻微阴影 */
         div[data-testid="stButton"] > button[kind="primary"] {
             border: 2px solid #ff4b4b !important;
             box-shadow: 0 0 12px rgba(255, 75, 75, 0.3) !important;
@@ -152,28 +153,21 @@ with col_main:
         for idx, p in enumerate(st.session_state.generated_cache):
             with cols[idx % 2]:
                 is_sel = p in st.session_state.selected_prompts
-                # 方案内容作为按钮标签，完全去掉“选中”字样
-                if st.button(
-                    f"方案 {idx+1}\n\n{p}", 
-                    key=f"sel_{idx}", 
-                    use_container_width=True, 
-                    type="primary" if is_sel else "secondary"
-                ):
+                if st.button(f"方案 {idx+1}\n\n{p}", key=f"sel_{idx}", use_container_width=True, type="primary" if is_sel else "secondary"):
                     if is_sel: st.session_state.selected_prompts.remove(p)
                     else: st.session_state.selected_prompts.append(p)
                     st.rerun()
 
         if st.session_state.selected_prompts:
-            st.write("")
-            if st.button("✨ 确认方案并开始艺术润色", type="primary", use_container_width=True):
-                with st.spinner("DeepSeek 正在解析你的灵感..."):
+            if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
+                with st.spinner("正在构思..."):
                     combined = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
                     system = f"你是一个纹身艺术顾问。将标签转化为中文提示词。混乱度{chaos_level}/100。格式：'**方案X：** 内容'。"
                     res = client.chat.completions.create(model="deepseek-chat", messages=[{"role": "system", "content": system}, {"role": "user", "content": combined}]).choices[0].message.content
                     st.session_state.polished_text = res
                     st.rerun()
 
-    # 3. 最终结果展示
+    # 最终结果展示
     if st.session_state.get('polished_text'):
         st.divider()
         st.subheader("🎨 艺术润色成品")
@@ -181,12 +175,12 @@ with col_main:
         
         c_btn1, c_btn2, c_btn3 = st.columns(3)
         with c_btn1:
-            if st.button("💾 存入灵感成品库", use_container_width=True):
+            if st.button("💾 存入成品库", use_container_width=True):
                 current = get_github_data(GALLERY_FILE)
                 new = [l.strip() for l in final_content.split('\n') if l.strip() and '方案' not in l]
                 current.extend(new); save_to_github(GALLERY_FILE, current); st.success("已存档")
         with c_btn2:
-            if st.button("🚀 发送到自动化跑图", type="primary", use_container_width=True):
+            if st.button("🚀 发送到自动化", type="primary", use_container_width=True):
                 st.session_state.auto_input_cache = final_content
                 st.switch_page("pages/02_automation.py")
         with c_btn3:
