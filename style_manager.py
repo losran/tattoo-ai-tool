@@ -25,6 +25,30 @@ def apply_pro_style():
             box-shadow: 0 0 15px rgba(255, 75, 75, 0.2) !important;
             background-color: #211d1d !important;
         }
+        /* 📍 右侧仓库按钮专项优化 */
+    div[data-testid="stColumn"] button {
+        padding: 5px 10px !important;
+        font-size: 13px !important;
+        background-color: #1a1b23 !important;
+        border: 1px solid #30363d !important;
+        text-align: left !important;
+    }
+    
+    /* 鼠标滑过单词变亮 */
+    div[data-testid="stColumn"] button:hover {
+        border-color: #ff4b4b !important;
+        background-color: #211d1d !important;
+    }
+
+    /* 删除按钮（垃圾桶）特殊处理 */
+    div[data-testid="stColumn"]:nth-child(2) button {
+        text-align: center !important;
+        color: #8b949e !important;
+    }
+    div[data-testid="stColumn"]:nth-child(2) button:hover {
+        color: #ff4b4b !important;
+    }
+        
 
         /* 4. 文本框美化：深色背景 + 呼吸边框 */
         .stTextArea textarea {
