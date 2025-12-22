@@ -13,20 +13,31 @@ st.set_page_config(page_title="Tattoo Pro Station", layout="wide", initial_sideb
 # --- 定位：搜索 <style> 里的碎片样式部分 ---
 st.markdown("""
     <style>
-    /* 强制横向排队：让装方块的容器变成横向排列 */
+    /* 1. 锁死页面高度，禁止整页滚动 */
+    html, body, [data-testid="stAppViewContainer"] {
+        overflow: hidden !important; height: 100vh !important;
+    }
+    header {visibility: hidden;} .block-container { padding: 0 !important; }
+
+    /* 2. 【核心定位】强行让所有 Checkbox 容器变成横向平铺 */
+    /* 这段代码会抓住你截图中那些竖着排的方块，强行让它们并排 */
     [data-testid="stVerticalBlock"] > div:has([data-testid="stCheckbox"]) {
         display: flex !important;
-        flex-direction: row !important; 
-        flex-wrap: wrap !important; 
-        gap: 8px !important;
+        flex-direction: row !important; /* 横排 */
+        flex-wrap: wrap !important;     /* 满了自动换行 */
+        gap: 8px !important;            /* 间距 */
     }
 
-    /* 缩下方块：不准方块占满全行，文字多长方块就多宽 */
+    /* 3. 碎片样式美化，防止它拉伸成面条 */
     [data-testid="stCheckbox"] {
         flex: 0 1 auto !important;
         width: auto !important;
-        min-width: fit-content !important;
+        background: #1f2428 !important;
+        border: 1px solid #444 !important;
+        padding: 2px 10px !important;
+        border-radius: 6px !important;
     }
+    [data-testid="stCheckbox"] p { font-size: 14px !important; white-space: nowrap !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -238,6 +249,7 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
 
