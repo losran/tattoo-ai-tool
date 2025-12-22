@@ -59,7 +59,7 @@ st.markdown("""
         background: #1f1f1f; margin-bottom: 6px; padding: 6px 12px; border-radius: 6px; border: 1px solid #333;
     }
     .repo-text { font-size: 13px; color: #ddd; }
-    </style>
+
       /* 左下角看板锁死 */
     .sticky-stats {
         position: fixed;
@@ -79,6 +79,8 @@ st.markdown("""
     .nav-label { font-size: 11px; color: #888; }
     .nav-val { font-size: 18px; font-weight: bold; color: #58a6ff; }
 
+    </style>
+    
 """, unsafe_allow_html=True)
 
 # --- 3. 数据逻辑 ---
@@ -245,6 +247,7 @@ with col_lib:
         st.info("暂无数据")
     
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
