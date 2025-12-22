@@ -47,35 +47,51 @@ st.subheader("第一步：样板拆解")
 user_input = st.text_area("粘贴样板文案", height=150, placeholder="描述文本...", key=f"in_{st.session_state.input_id}")
 
 if st.button("🔍 开始 AI 拆分", type="primary", use_container_width=True):
-    if user_input:
-        with st.spinner("AI 解析中..."):
-            try:
-                # 强化 Prompt 确保格式
-                res = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[
-                        {"role": "system", "content": "你只输出标签。格式：分类:词|分类:词。分类限：主体、风格、部位、氛围。"},
-                        {"role": "user", "content": user_input}
-                    ],
-                    temperature=0.1
-                ).choices[0].message.content
-                
-                # 容错解析
-                parsed = []
-                for p in res.replace("：", ":").replace("\n", "").split("|"):
-                    if ":" in p:
-                        k, v = p.split(":", 1)
-                        if k.strip() in ["主体", "风格", "部位", "氛围"]:
-                            parsed.append({"cat": k.strip(), "val": v.strip()})
-                
-                if parsed:
-                    st.session_state.pre_tags = parsed
-                    st.session_state.input_id += 1 # 清空输入框
-                    st.rerun()
-                else:
-                    st.warning(f"解析失败。AI原文：{res}")
-            except Exception as e:
-                st.error(f"出错：{e}")
+        if user_input:
+            with st.spinner("💥 正在执行大爆炸拆解..."):
+                try:
+                    # ⚠️ 强化 Prompt：明确要求“极细颗粒度”拆分
+                    res = client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[
+                            {"role": "system", "content": """你是一个纹身关键词拆解专家。
+                            你的任务：将描述文案彻底打碎成独立的短词。
+                            要求：
+                            1. 颗粒度极细：不要把一句话放一起，例如“写实黑灰风格”要拆成“写实|黑灰”。
+                            2. 严格格式：分类:短词|分类:短词
+                            3. 强制分类：只能用[主体, 风格, 部位, 氛围]这四个词。
+                            4. 禁止废话：不准输出任何正文说明。"""},
+                            {"role": "user", "content": user_input}
+                        ],
+                        temperature=0.3 # 稍微增加一点灵活性，利于拆分
+                    ).choices[0].message.content
+                    
+                    # ⚠️ 强力解析逻辑：处理多层嵌套和各种符号
+                    parsed = []
+                    # 统一替换掉常见的干扰符，按竖线切分
+                    raw_tags = res.replace("：", ":").replace("，", "|").replace(",", "|").split("|")
+                    
+                    for tag in raw_tags:
+                        if ":" in tag:
+                            k, v = tag.split(":", 1)
+                            key = k.strip()
+                            val = v.strip()
+                            # 过滤空词和错误分类
+                            if key in ["主体", "风格", "部位", "氛围"] and val:
+                                # 如果词里面还有逗号，再次物理切分
+                                sub_words = val.replace("、", "/").replace(" ", "/").split("/")
+                                for sw in sub_words:
+                                    if sw.strip():
+                                        parsed.append({"cat": key, "val": sw.strip()})
+                    
+                    if parsed:
+                        st.session_state.pre_tags = parsed
+                        st.session_state.input_id += 1 
+                        st.rerun()
+                    else:
+                        st.error(f"拆解失败，AI返回了：{res}")
+                except Exception as e:
+                    st.error(f"引擎故障：{e}")
 
 # 模块二：预览与入库
 # --- 模块二：大爆炸预览区 ---
@@ -134,4 +150,5 @@ if items:
     st.write("、".join(items)) # 用顿号隔开显示
 else:
     st.caption("暂无数据")
+
 
