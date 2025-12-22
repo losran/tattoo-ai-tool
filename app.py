@@ -27,25 +27,7 @@ st.markdown("""
         width: 130px !important;
         z-index: 999;
     }
-    /* 左下角看板锁死 */
-    .sticky-stats {
-        position: fixed;
-        left: 15px;
-        bottom: 30px;
-        width: 90px;
-        z-index: 1002; /* 确保在最上层 */
-    }
-    .nav-item {
-        background: rgba(255, 255, 255, 0.05); /* 确保有背景色 */
-        border: 1px solid #333;
-        border-radius: 8px;
-        padding: 8px;
-        margin-top: 8px;
-        text-align: center;
-    }
-    .nav-label { font-size: 11px; color: #888; }
-    .nav-val { font-size: 18px; font-weight: bold; color: #58a6ff; }
-
+  
     /* [2] 中间操作区：自适应宽度 */
     [data-testid="stColumn"]:nth-child(2) {
         margin-left: 140px !important; /* 给左边留位置 */
@@ -78,6 +60,25 @@ st.markdown("""
     }
     .repo-text { font-size: 13px; color: #ddd; }
     </style>
+      /* 左下角看板锁死 */
+    .sticky-stats {
+        position: fixed;
+        left: 15px;
+        bottom: 30px;
+        width: 90px;
+        z-index: 1002; /* 确保在最上层 */
+    }
+    .nav-item {
+        background: rgba(255, 255, 255, 0.05); /* 确保有背景色 */
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 8px;
+        margin-top: 8px;
+        text-align: center;
+    }
+    .nav-label { font-size: 11px; color: #888; }
+    .nav-val { font-size: 18px; font-weight: bold; color: #58a6ff; }
+
 """, unsafe_allow_html=True)
 
 # --- 3. 数据逻辑 ---
@@ -246,4 +247,5 @@ with col_lib:
         st.info("暂无数据")
     
     st.markdown('</div>', unsafe_allow_html=True)
+
 
