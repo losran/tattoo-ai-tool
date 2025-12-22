@@ -170,19 +170,18 @@ with col_gallery:
 
 # --- 左侧：核心生成区 ---
 with col_main:
-    # 1. 灵感配置
-    st.subheader("📝 灵感调配")
-    st.session_state.manual_editor = st.text_area("手动编辑或从右侧导入关键词：", value=st.session_state.manual_editor, height=80)
+    # --- 修正后的展示逻辑 ---
+    st.subheader("🎲 方案筛选 (点击卡片进行调配)")
     
-    chaos_level = st.slider("✨ 创意混乱参数 (Chaos Level)", 0, 100, 50)
-    
-    # 📍 生成数量按钮组：左按钮占 4，右数字占 1
-    st.write("") 
-    col_trigger, col_num = st.columns([4, 1])
-    
-    with col_num:
-        # 数字输入框
-        num = st.number_input("数量", 1, 15, 3, label_visibility="collapsed")
+    # 🔴 关键点：这里必须和生成逻辑里的变量名 st.session_state.generated_cache 对应
+    if "generated_cache" in st.session_state and st.session_state.generated_cache:
+        cols = st.columns(2) # 每行显示2个方案
+        for i, prompt_text in enumerate(st.session_state.generated_cache):
+            with cols[i % 2]:
+                # 使用一个容器或按钮来显示内容
+                st.info(f"**方案 {i+1}**\n\n{prompt_text}") 
+    else:
+        st.info("💡 请点击上方按钮激发创意组合")
         
 # 确保这一行是在 with col_trigger: 的下一级缩进
     do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
