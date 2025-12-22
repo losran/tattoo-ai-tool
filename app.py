@@ -1,7 +1,8 @@
 import streamlit as st
 from openai import OpenAI
 import requests, base64, time
-
+# --- 关键：必须放在最顶部 ---
+st.set_page_config(layout="wide", page_title="Tattoo Lite")
 # --- 1. 极简配置区 ---
 client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -182,4 +183,5 @@ with c_lib:
                 st.rerun()
     else:
         st.caption("空空如也")
+
 
