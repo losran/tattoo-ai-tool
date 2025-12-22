@@ -158,64 +158,59 @@ with col_mid:
                         
                 except Exception as e:
                     st.error(f"📡 网络或接口异常: {e}")# 3. 🏁 碎片预览区 (只有当 pre_tags 有数据时才显示)
+# --- 找到这行，从这里开始替换 ---
     if st.session_state.pre_tags:
         st.write("---")
         st.subheader("📋 碎片预览 (勾选想要入库的)")
         
-        # 用于存放用户最终勾选的碎片
         save_list = []
-        
-        # 定义五维展示顺序
+        # 按 Subject, Action, Style, Mood, Usage 顺序排队显示
         order = ["Subject", "Action", "Style", "Mood", "Usage"]
         
         for display_cat in order:
-            # 过滤出当前分类下的词条
             words = [t for t in st.session_state.pre_tags if t['cat'] == display_cat]
             if words:
                 st.markdown(f"**📍 {display_cat}**")
-                # 创建 3 列布局，让碎片横向炸开
                 cols = st.columns(3)
                 for i, w in enumerate(words):
                     with cols[i % 3]:
-                        # 核心交互：每个词都是一个独立的带边框 Checkbox
-                        # key 中加入 input_id 确保每次拆解都是全新的组件 ID
-                        k_id = f"pre_{display_cat}_{i}_{st.session_state.input_id}"
-                        if st.checkbox(w['val'], value=True, key=k_id):
+                        # 给每个小方块起个独一无二的名字，防止报错
+                        # tag_id 就像是身份证号，保证不重复
+                        tag_id = f"chk_{display_cat}_{i}_{st.session_state.input_id}"
+                        if st.checkbox(w['val'], value=True, key=tag_id):
                             save_list.append(w)
         
-        # 4. 预览区操作按钮组
         st.write("")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("🚀 一键入云库", type="primary", use_container_width=True):
-                # 建立维度与 GitHub 文件名的映射
+        # --- 下面是两个并排的按钮：入库 和 扫走 ---
+        btn_cols = st.columns(2)
+        
+        with btn_cols[0]:
+            # 这个按钮叫“一键入云库”，加上 key 保证它唯一
+            if st.button("🚀 一键入云库", type="primary", use_container_width=True, key=f"btn_save_{st.session_state.input_id}"):
+                # 告诉电脑：Subject 的词存到 subjects.txt，以此类推
                 f_map = {
-                    "Subject": "subjects.txt",
-                    "Action": "actions.txt",
-                    "Style": "styles.txt",
-                    "Mood": "moods.txt",
-                    "Usage": "usage.txt"
+                    "Subject": "subjects.txt", "Action": "actions.txt", 
+                    "Style": "styles.txt", "Mood": "moods.txt", "Usage": "usage.txt"
                 }
                 
-                # 遍历勾选的碎片，去重并存入数据库
                 for t in save_list:
-                    cat_key = t['cat']
+                    c_key = t['cat']
                     val = t['val']
-                    if val not in st.session_state.db.get(cat_key, []):
-                        st.session_state.db.setdefault(cat_key, []).append(val)
-                        # 调用 GitHub 同步函数
-                        sync_git(f_map.get(cat_key, "misc.txt"), st.session_state.db[cat_key])
+                    # 如果库里还没有这个词，就存进去
+                    if val not in st.session_state.db.get(c_key, []):
+                        st.session_state.db.setdefault(c_key, []).append(val)
+                        sync_git(f_map.get(c_key, "misc.txt"), st.session_state.db[c_key])
                 
-                # 入库完成后，清空预览区并刷新页面
-                st.session_state.pre_tags = []
-                st.success("🎉 已成功存入云端仓库！")
+                st.session_state.pre_tags = [] # 存完了就清空预览
+                st.success("🎉 存好啦！快去右边看看吧")
                 time.sleep(0.8)
-                st.rerun()
-        
-        with c2:
-            if st.button("🧹 扫走碎片 (清空)", use_container_width=True):
+                st.rerun() # 刷新页面，让数字变动
+                
+        with btn_cols[1]:
+            # 这个按钮负责把不想要的碎片全部扫掉
+            if st.button("🧹 扫走碎片 (清空)", use_container_width=True, key=f"btn_clr_{st.session_state.input_id}"):
                 st.session_state.pre_tags = []
-                st.rerun()# 👉 [右侧栏] 资产管理仓库 (带边框碎片化展示)
+                st.rerun()
 with col_lib:
     st.subheader("📚 仓库整理")
     
@@ -269,6 +264,7 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
 
