@@ -7,148 +7,149 @@ client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepse
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO = "losran/tattoo-ai-tool"
 
-st.set_page_config(page_title="纹身助手-稳固版", layout="centered")
+st.set_page_config(page_title="Tattoo Pro Station", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. 核心数据同步函数 ---
+# --- 2. 核心 CSS (强制三栏布局 + 碎片卡片化) ---
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
+    .main { background-color: #0d0d0d; color: #fff; }
+    .block-container { padding: 0 !important; max-width: 100% !important; }
+
+    /* 左侧：固定看板 */
+    [data-testid="stColumn"]:nth-child(1) {
+        position: fixed; left: 0; top: 0; bottom: 0; width: 120px !important;
+        background: #161b22; border-right: 1px solid #333; z-index: 1001; padding-top: 20px !important;
+    }
+    .sticky-stats { position: fixed; left: 10px; bottom: 20px; width: 100px; z-index: 1002; }
+    .nav-item { background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px; padding: 8px; margin-top: 8px; text-align: center; }
+    .nav-val { color: #58a6ff; font-weight: bold; font-size: 16px; }
+
+    /* 中间：生产区 */
+    [data-testid="stColumn"]:nth-child(2) {
+        margin-left: 140px !important; margin-right: 380px !important;
+        width: auto !important; padding: 40px !important;
+    }
+
+    /* 右侧：仓库区 (强制显示) */
+    [data-testid="stColumn"]:nth-child(3) {
+        position: fixed; right: 0; top: 0; bottom: 0; width: 360px !important;
+        background: #0d1117; border-left: 1px solid #333; padding: 30px 20px !important;
+        z-index: 1000; overflow-y: auto !important;
+    }
+
+    /* 碎片卡片样式 (大爆炸效果) */
+    [data-testid="stCheckbox"] {
+        background: #1f2428 !important; border: 1px solid #333 !important;
+        padding: 5px 10px !important; border-radius: 6px !important; margin-bottom: 5px !important;
+    }
+    [data-testid="stCheckbox"]:has(input:checked) {
+        border-color: #ff4b4b !important; background: #2d1b1b !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- 3. 数据同步 ---
 def sync_git(fn, data):
     url = f"https://api.github.com/repos/{REPO}/contents/data/{fn}"
-    hd = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    hd = {"Authorization": f"token {GITHUB_TOKEN}"}
     try:
         r = requests.get(url, headers=hd).json()
-        clean_data = [d.strip() for d in data if d and d.strip()]
-        content = base64.b64encode("\n".join(list(set(clean_data))).encode()).decode()
+        content = base64.b64encode("\n".join(list(set(data))).encode()).decode()
         requests.put(url, headers=hd, json={"message": "sync", "content": content, "sha": r.get('sha')})
     except: pass
 
 def get_git(fn):
     url = f"https://api.github.com/repos/{REPO}/contents/data/{fn}"
     r = requests.get(url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
-    if r.status_code == 200:
-        return [l.strip() for l in base64.b64decode(r.json()['content']).decode('utf-8').splitlines() if l.strip()]
-    return []
+    return base64.b64decode(r.json()['content']).decode('utf-8').splitlines() if r.status_code == 200 else []
 
-# 初始化状态
 if 'db' not in st.session_state:
     st.session_state.db = {k: get_git(v) for k, v in {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}.items()}
 if 'pre_tags' not in st.session_state: st.session_state.pre_tags = []
 if 'input_id' not in st.session_state: st.session_state.input_id = 0
 
-# --- 3. 界面逻辑 ---
-st.title("🌀 纹身素材智能入库")
+# --- 4. 物理三栏渲染 ---
+col_nav, col_mid, col_lib = st.columns([12, 53, 35])
 
-# 侧边栏只放数据统计，不放按钮
-with st.sidebar:
-    st.header("📊 资产统计")
-    for k, v in st.session_state.db.items():
-        st.metric(k, len(v))
+# 👉 左：看板
+with col_nav:
+    st.markdown("### 🌀")
+    html = '<div class="sticky-stats">'
+    for k in ["主体", "风格", "部位", "氛围"]:
+        html += f'<div class="nav-item"><div style="font-size:10px;color:#888">{k}</div><div class="nav-val">{len(st.session_state.db.get(k, []))}</div></div>'
+    st.markdown(html + '</div>', unsafe_allow_html=True)
 
-# 模块一：智能拆分
-st.subheader("第一步：样板拆解")
-user_input = st.text_area("粘贴样板文案", height=150, placeholder="描述文本...", key=f"in_{st.session_state.input_id}")
-
-if st.button("🔍 开始 AI 拆分", type="primary", use_container_width=True):
-        if user_input:
-            with st.spinner("💥 正在执行大爆炸拆解..."):
-                try:
-                    # ⚠️ 强化 Prompt：明确要求“极细颗粒度”拆分
-                    res = client.chat.completions.create(
-                        model="deepseek-chat",
-                        messages=[
-                            {"role": "system", "content": """你是一个纹身关键词拆解专家。
-                            你的任务：将描述文案彻底打碎成独立的短词。
-                            要求：
-                            1. 颗粒度极细：不要把一句话放一起，例如“写实黑灰风格”要拆成“写实|黑灰”。
-                            2. 严格格式：分类:短词|分类:短词
-                            3. 强制分类：只能用[主体, 风格, 部位, 氛围]这四个词。
-                            4. 禁止废话：不准输出任何正文说明。"""},
-                            {"role": "user", "content": user_input}
-                        ],
-                        temperature=0.3 # 稍微增加一点灵活性，利于拆分
-                    ).choices[0].message.content
-                    
-                    # ⚠️ 强力解析逻辑：处理多层嵌套和各种符号
-                    parsed = []
-                    # 统一替换掉常见的干扰符，按竖线切分
-                    raw_tags = res.replace("：", ":").replace("，", "|").replace(",", "|").split("|")
-                    
-                    for tag in raw_tags:
-                        if ":" in tag:
-                            k, v = tag.split(":", 1)
-                            key = k.strip()
-                            val = v.strip()
-                            # 过滤空词和错误分类
-                            if key in ["主体", "风格", "部位", "氛围"] and val:
-                                # 如果词里面还有逗号，再次物理切分
-                                sub_words = val.replace("、", "/").replace(" ", "/").split("/")
-                                for sw in sub_words:
-                                    if sw.strip():
-                                        parsed.append({"cat": key, "val": sw.strip()})
-                    
-                    if parsed:
-                        st.session_state.pre_tags = parsed
-                        st.session_state.input_id += 1 
-                        st.rerun()
-                    else:
-                        st.error(f"拆解失败，AI返回了：{res}")
-                except Exception as e:
-                    st.error(f"引擎故障：{e}")
-
-# 模块二：预览与入库
-# --- 模块二：大爆炸预览区 ---
-if st.session_state.pre_tags:
-    st.write("---")
-    st.subheader("💥 灵感大爆炸")
-    st.caption("点击勾选你想要保存的关键词碎片：")
+# 👉 中：生产大爆炸
+with col_mid:
+    st.title("✨ 灵感大爆炸拆解")
+    raw = st.text_area("粘贴样板描述", height=150, key=f"in_{st.session_state.input_id}")
     
-    # 建立一个容器，让标签排布更紧凑
-    save_list = []
-    
-    # [1] 按照分类排放碎块
-    for cat_name in ["主体", "风格", "部位", "氛围"]:
-        # 过滤出属于当前分类的词
-        cat_words = [t for t in st.session_state.pre_tags if t['cat'] == cat_name]
+    if st.button("🔍 立即拆解", type="primary", use_container_width=True):
+        if raw:
+            with st.spinner("碎裂中..."):
+                res = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[{"role": "system", "content": "分类:短词|分类:短词。分类限:主体,风格,部位,氛围。词要拆得细。"}, {"role": "user", "content": raw}],
+                    temperature=0.3
+                ).choices[0].message.content
+                # 强力拆词逻辑
+                parsed = []
+                for p in res.replace("：", ":").replace("，", "|").split("|"):
+                    if ":" in p:
+                        k, v = p.split(":", 1)
+                        if k.strip() in ["主体", "风格", "部位", "氛围"]:
+                            parsed.extend([{"cat": k.strip(), "val": s.strip()} for s in v.replace("、", "/").split("/") if s.strip()])
+                st.session_state.pre_tags = parsed
+                st.session_state.input_id += 1 
+                st.rerun()
+
+    if st.session_state.pre_tags:
+        st.write("---")
+        st.subheader("💥 碎片预览")
+        save_list = []
+        for cat in ["主体", "风格", "部位", "氛围"]:
+            words = [t for t in st.session_state.pre_tags if t['cat'] == cat]
+            if words:
+                st.caption(f"📍 {cat}")
+                cols = st.columns(3)
+                for i, w in enumerate(words):
+                    with cols[i % 3]:
+                        if st.checkbox(w['val'], value=True, key=f"pre_{cat}_{i}"):
+                            save_list.append(w)
         
-        if cat_words:
-            st.markdown(f"**📍 {cat_name}**")
-            # 创建多列，让词条像碎片一样横向炸开
-            cols = st.columns(4) 
-            for idx, tag in enumerate(cat_words):
-                # 每一个词都是一个独立的 Checkbox
-                with cols[idx % 4]:
-                    if st.checkbox(tag['val'], value=True, key=f"boom_{cat_name}_{idx}"):
-                        save_list.append(tag)
-            st.write("") # 间距
-
-    # [2] 操作按钮组
-    st.write("")
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        if st.button("🚀 将勾选碎片存入仓库", type="primary", use_container_width=True):
-            if save_list:
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🚀 一键入云库", type="primary", use_container_width=True):
                 f_map = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}
                 for t in save_list:
                     if t['val'] not in st.session_state.db[t['cat']]:
                         st.session_state.db[t['cat']].append(t['val'])
                         sync_git(f_map[t['cat']], st.session_state.db[t['cat']])
-                st.session_state.pre_tags = [] # 清空大爆炸现场
-                st.success(f"成功录入 {len(save_list)} 个新素材！")
-                time.sleep(1)
+                st.session_state.pre_tags = []
+                st.success("同步成功")
+                time.sleep(1); st.rerun()
+        with c2:
+            if st.button("🧹 扫走碎片", use_container_width=True):
+                st.session_state.pre_tags = []
                 st.rerun()
-            else:
-                st.warning("请至少勾选一个词条")
-    with c2:
-        if st.button("🧹 扫走碎片", use_container_width=True):
-            st.session_state.pre_tags = []
-            st.rerun()
 
-# 模块三：简易仓库管理
-st.write("---")
-st.subheader("📚 仓库查看")
-cat = st.selectbox("分类选择", ["主体", "风格", "部位", "氛围"])
-items = st.session_state.db.get(cat, [])
-if items:
-    st.write("、".join(items)) # 用顿号隔开显示
-else:
-    st.caption("暂无数据")
-
-
+# 👉 右：仓库管理
+with col_lib:
+    st.subheader("📚 仓库整理")
+    cat = st.selectbox("分类", ["主体", "风格", "部位", "氛围"], key="lib_cat", label_visibility="collapsed")
+    st.divider()
+    items = st.session_state.db.get(cat, [])
+    del_list = []
+    if items:
+        lib_cols = st.columns(2)
+        for i, item in enumerate(items):
+            with lib_cols[i % 2]:
+                if st.checkbox(item, value=False, key=f"lib_{cat}_{i}"):
+                    del_list.append(item)
+        if del_list:
+            if st.button(f"🗑️ 批量删除 {len(del_list)} 项", type="secondary", use_container_width=True):
+                st.session_state.db[cat] = [x for x in items if x not in del_list]
+                sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[cat], st.session_state.db[cat])
+                st.rerun()
+    else: st.caption("空空如也")
