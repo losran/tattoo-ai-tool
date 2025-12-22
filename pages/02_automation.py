@@ -3,12 +3,16 @@ from style_manager import apply_pro_style
 
 # 📍 傻瓜调用：全站视觉一键同步
 apply_pro_style()
+
+# --- 1. 新增组件库 (用于自动复制) ---
+import streamlit.components.v1 as components
 import json
 import urllib.parse
 import re
 
 st.set_page_config(layout="wide", page_title="Automation Central")
-# 📍 定位：外观装修区 (插入在 st.title 下方)
+
+# 📍 定位：外观装修区
 st.markdown("""
 <style>
     /* 1. 整体暗色背景 */
@@ -27,7 +31,7 @@ st.markdown("""
         border: 1px solid #30363d !important;
         border-radius: 10px !important;
         color: #c9d1d9 !important;
-        font-family: 'Consolas', 'Monaco', monospace; /* 使用等宽字体，更有代码感 */
+        font-family: 'Consolas', 'Monaco', monospace;
     }
 
     /* 4. 操作步骤卡片 - 采用暗调处理 */
@@ -49,17 +53,17 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-# --- 1. 核心 JS 模板：带平台适配参数 ---
+
+# --- 核心 JS 模板 ---
 def generate_v15_script(prompts, platform_type):
     encoded_data = urllib.parse.quote(json.dumps(prompts))
     
-    # 针对不同平台微调探测器（你 v15.0 的精髓）
     selector_logic = ""
     if platform_type == "ChatGPT":
         selector_logic = "return document.querySelector('#prompt-textarea');"
     elif platform_type == "Doubao":
         selector_logic = "return document.querySelector('div[contenteditable=\"true\"]');"
-    else: # 万能自适应
+    else: 
         selector_logic = "return document.querySelector('#prompt-textarea, div[contenteditable=\"true\"], textarea, .n-input__textarea-el, [placeholder*=\"输入\"], [placeholder*=\"提问\"]');"
 
     return f"""(async function() {{
@@ -69,29 +73,27 @@ def generate_v15_script(prompts, platform_type):
     function showStatus(text, color = "#6366f1") {{
         let el = document.getElementById('magic-status-bar') || document.createElement('div');
         el.id = 'magic-status-bar';
-        // 📍 替换开始
-    el.style.cssText = `
-        position: fixed; 
-        top: 25px; 
-        left: 50%; 
-        transform: translateX(-50%); 
-        z-index: 999999; 
-        padding: 12px 28px; 
-        border-radius: 50px; 
-        font-family: 'Segoe UI', sans-serif; 
-        font-size: 13px; 
-        font-weight: 600; 
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        color: #fff; 
-        background: rgba(13, 17, 23, 0.85); 
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 75, 75, 0.4); 
-        box-shadow: 0 0 20px rgba(255, 75, 75, 0.2), inset 0 0 10px rgba(255, 75, 75, 0.05);
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    `;
-    // 📍 替换结束
+        el.style.cssText = `
+            position: fixed; 
+            top: 25px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            z-index: 999999; 
+            padding: 12px 28px; 
+            border-radius: 50px; 
+            font-family: 'Segoe UI', sans-serif; 
+            font-size: 13px; 
+            font-weight: 600; 
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #fff; 
+            background: rgba(13, 17, 23, 0.85); 
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 75, 75, 0.4); 
+            box-shadow: 0 0 20px rgba(255, 75, 75, 0.2), inset 0 0 10px rgba(255, 75, 75, 0.05);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        `;
         if(!document.getElementById('magic-status-bar')) document.body.appendChild(el);
         el.textContent = text;
     }}
@@ -163,26 +165,34 @@ default_text = st.session_state.get('auto_input_cache', "")
 user_input = st.text_area("检查待处理的提示词内容：", value=default_text, height=300)
 
 if st.button("🚀 生成全能适配脚本", type="primary", use_container_width=True):
-    # 智能拆分逻辑
+    # 智能拆分逻辑 (保留你的原始逻辑)
     blocks = re.split(r'\*\*方案[一二三四五六七八九十\d]+[:：].*?\*\*', user_input)
     task_list = [b.strip().replace('* ', '').replace('\n', ' ') for b in blocks if len(b.strip()) > 5]
     
     if task_list:
-        st.divider()
-        st.subheader(f"📦 待处理任务: {len(task_list)} 条")
-        
-        # --- 重点：F12 傻瓜式指引卡片 ---
-        st.success("✅ 脚本已生成！请按以下步骤操作：")
-        guide_col1, guide_col2, guide_col3 = st.columns(3)
-        guide_col1.metric("第一步", "点击右上角复制")
-        guide_col2.metric("第二步", "目标站按 F12")
-        guide_col3.metric("第三步", "粘贴并回车")
-        
-        # 脚本代码
+        # 生成 JS 代码
         js_code = generate_v15_script(task_list, target_platform)
+        
+        # --- 🟢 核心修改：无感自动复制 (隐藏组件) ---
+        js_val = json.dumps(js_code)
+        components.html(f"""
+        <script>
+            navigator.clipboard.writeText({js_val}).then(function() {{
+                console.log('Auto-copy success');
+            }}, function(err) {{
+                console.error('Auto-copy failed', err);
+            }});
+        </script>
+        """, height=0)
+        
+        # --- 🟢 核心修改：精简界面反馈 ---
+        st.divider()
+        st.success(f"✅ 脚本已生成 (含 {len(task_list)} 条任务)，并已尝试自动复制！")
+        st.caption("👇 如果没复制上，可以手动复制下面的代码 -> F12 -> Console -> 粘贴")
+        
+        # 脚本代码展示
         st.code(js_code, language="javascript")
         
-        st.info("💡 提示：如果发现脚本不输入，请尝试切换平台重新生成。")
     else:
         st.error("无法识别内容，请确保文本包含 '**方案一：**' 字样")
 
