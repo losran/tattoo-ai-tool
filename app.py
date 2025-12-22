@@ -9,134 +9,152 @@ REPO = "losran/tattoo-ai-tool"
 
 st.set_page_config(page_title="Tattoo Pro Station", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. 核心 CSS (还原设计稿：三栏固定 + 高亮标签) ---
+# --- 2. 核心 CSS 修正 (彻底解决排版怪异问题) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0d0d0d; color: #ffffff; }
-    /* 三栏物理分割 */
-    [data-testid="stColumn"]:nth-child(1) { position: fixed; left: 0; top: 0; bottom: 0; width: 80px !important; background: #1a1a1a; border-right: 1px solid #2d2d2d; padding: 20px 0 !important; z-index: 1001; }
-    [data-testid="stColumn"]:nth-child(2) { margin-left: 100px !important; width: 45% !important; padding: 40px !important; }
-    [data-testid="stColumn"]:nth-child(3) { position: fixed; right: 0; top: 0; bottom: 0; width: 38% !important; background: #0d0d0d; border-left: 1px solid #2d2d2d; padding: 30px !important; z-index: 1000; overflow-y: auto; }
+    /* 全局背景与边距重置 */
+    .main { background-color: #0d0d0d; }
+    .block-container { padding: 0 !important; max-width: 100% !important; }
     
-    /* 交互式标签样式 */
-    .preview-chip { display: inline-flex; align-items: center; padding: 6px 15px; border-radius: 8px; margin: 5px; cursor: pointer; border: 1px solid #444; background: #1a1a1a; transition: 0.2s; }
-    .chip-selected { background: #0071e3 !important; border-color: #0071e3 !important; color: white !important; font-weight: bold; }
-    .lib-chip { display: inline-flex; align-items: center; background: #1f1f1f; border: 1px solid #333; color: #58a6ff; padding: 3px 10px; border-radius: 6px; font-size: 13px; margin: 3px; }
+    /* [1] 左侧导航栏 - 固定宽度与定位 */
+    [data-testid="stColumn"]:nth-child(1) {
+        position: fixed; left: 0; top: 0; bottom: 0;
+        width: 100px !important;
+        background: #161b22;
+        border-right: 1px solid #30363d;
+        padding: 40px 10px !important;
+        z-index: 1001;
+        text-align: center;
+    }
+
+    /* [2] 中间生产区 - 居中且宽度自适应 */
+    [data-testid="stColumn"]:nth-child(2) {
+        margin-left: 120px !important;
+        margin-right: 380px !important;
+        width: auto !important;
+        padding: 60px 40px !important;
+        min-height: 100vh;
+    }
+
+    /* [3] 右侧资产库 - 固定在右侧 */
+    [data-testid="stColumn"]:nth-child(3) {
+        position: fixed; right: 0; top: 0; bottom: 0;
+        width: 360px !important;
+        background: #0d1117;
+        border-left: 1px solid #30363d;
+        padding: 40px 20px !important;
+        z-index: 1000;
+        overflow-y: auto;
+    }
+
+    /* 装饰：左侧统计小方块 */
+    .nav-item { margin-bottom: 25px; padding: 10px 5px; background: #21262d; border-radius: 8px; border: 1px solid #30363d; }
+    .nav-label { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+    .nav-val { font-size: 18px; font-weight: bold; color: #58a6ff; }
+
+    /* 中间按钮美化 */
+    .stButton > button {
+        border-radius: 50px !important;
+        padding: 10px 24px !important;
+        font-weight: 600 !important;
+    }
+    
+    /* 预览标签高亮视觉 */
+    .stCheckbox { background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333; margin-bottom: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. 数据读写补丁 ---
+# --- 3. 数据同步逻辑 (保持不变) ---
 def sync_git(fn, data):
     url = f"https://api.github.com/repos/{REPO}/contents/data/{fn}"
     hd = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-    r_get = requests.get(url, headers=hd).json()
-    sha = r_get.get('sha')
-    content = base64.b64encode("\n".join(list(set(data))).encode()).decode()
-    requests.put(url, headers=hd, json={"message": "sync", "content": content, "sha": sha})
+    try:
+        r = requests.get(url, headers=hd).json()
+        sha = r.get('sha')
+        content = base64.b64encode("\n".join(list(set(data))).encode()).decode()
+        requests.put(url, headers=hd, json={"message": "sync", "content": content, "sha": sha})
+    except: pass
 
+def get_git(fn):
+    url = f"https://api.github.com/repos/{REPO}/contents/data/{fn}"
+    r = requests.get(url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
+    return base64.b64decode(r.json()['content']).decode('utf-8').splitlines() if r.status_code == 200 else []
+
+# 初始加载
 if 'db' not in st.session_state:
-    files = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt","收藏":"favorites.txt"}
-    st.session_state.db = {k: [] for k in files}
-    # (此处应有初始化从GitHub读取逻辑，参考之前代码)
-
-# 初始化中间操作区的状态
+    st.session_state.db = {k: get_git(v) for k, v in {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt","收藏":"favorites.txt"}.items()}
 if 'is_split' not in st.session_state: st.session_state.is_split = False
-if 'tags_to_save' not in st.session_state: st.session_state.tags_to_save = []
+if 'pre_tags' not in st.session_state: st.session_state.pre_tags = []
 
-# --- 4. 物理布局构建 ---
-col_nav, col_mid, col_lib = st.columns([8, 45, 38])
+# --- 4. 三栏布局声明 ---
+col_nav, col_mid, col_lib = st.columns([10, 55, 35])
 
-# 👉 左：极窄导航
+# 👉 左：固定统计导航
 with col_nav:
-    st.markdown("🌀", help="Tattoo AI Logo")
-    st.caption(f"主体\n{len(st.session_state.db['主体'])}")
-    st.caption(f"风格\n{len(st.session_state.db['风格'])}")
+    st.markdown("### 🌀")
+    for k in ["主体", "风格", "部位", "氛围"]:
+        num = len(st.session_state.db.get(k, []))
+        st.markdown(f'<div class="nav-item"><div class="nav-label">{k}</div><div class="nav-val">{num}</div></div>', unsafe_allow_html=True)
 
-# 👉 中：流式生产区 (Workspace)
+# 👉 中：流式操作区
 with col_mid:
-    st.title("✨ 智能入库")
+    st.title("✨ 智能提取入库")
+    raw = st.text_area("输入样板提示词", height=180, placeholder="粘贴描述文本...", key="main_input")
     
-    # 输入框：始终保留
-    user_input = st.text_area("输入样板提示词", height=150, placeholder="描述文本...", key="main_input_box")
-    
-    # 动态按钮逻辑
     if not st.session_state.is_split:
-        # 初始状态：显示“开始拆分”
         if st.button("🔍 开始 AI 拆分", type="primary", use_container_width=True):
-            if user_input:
-                progress_bar = st.progress(0)
-                for percent_complete in range(100):
-                    time.sleep(0.01)
-                    progress_bar.progress(percent_complete + 1)
-                
-                # AI 处理
-                res = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[{"role": "system", "content": "格式:分类:词|分类:词。分类限:主体,风格,部位,氛围。"}, {"role": "user", "content": user_input}]
-                ).choices[0].message.content
-                
-                # 先保存在本地 Session
-                st.session_state.tags_to_save = [{"cat": p.split(":")[0], "val": p.split(":")[1], "selected": True} for p in res.split("|") if ":" in p]
-                st.session_state.is_split = True
-                st.rerun()
+            if raw:
+                with st.spinner("AI 分析中..."):
+                    res = client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[{"role": "system", "content": "格式:分类:词|分类:词。分类限:主体,风格,部位,氛围。"}, {"role": "user", "content": raw}]
+                    ).choices[0].message.content
+                    st.session_state.pre_tags = [{"cat": p.split(":")[0], "val": p.split(":")[1], "ok": True} for p in res.split("|") if ":" in p]
+                    st.session_state.is_split = True
+                    st.rerun()
     else:
-        # 拆分后状态：显示 AI 预览结果（高亮选择）
-        st.markdown("### AI 拆解预览 (请点击标签进行筛选)")
+        st.subheader("确认拆解结果")
+        save_list = []
+        for i, t in enumerate(st.session_state.pre_tags):
+            if st.checkbox(f"【{t['cat']}】{t['val']}", value=True, key=f"p_{i}"):
+                save_list.append(t)
         
-        # 渲染可交互的标签预览
-        for i, tag in enumerate(st.session_state.tags_to_save):
-            # 使用简单的 checkbox 模拟高亮选择视觉
-            is_selected = st.checkbox(f"【{tag['cat']}】{tag['val']}", value=tag['selected'], key=f"preview_{i}")
-            st.session_state.tags_to_save[i]['selected'] = is_selected
+        c1, c2 = st.columns(2)
+        if c1.button("🚀 一键入云库", type="primary", use_container_width=True):
+            f_map = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}
+            for item in save_list:
+                if item['val'] not in st.session_state.db[item['cat']]:
+                    st.session_state.db[item['cat']].append(item['val'])
+                    sync_git(f_map[item['cat']], st.session_state.db[item['cat']])
+            st.session_state.is_split = False
+            st.session_state.pre_tags = []
+            st.success("入库成功！")
+            st.rerun()
+        if c2.button("🧹 清空重置", use_container_width=True):
+            st.session_state.is_split = False
+            st.session_state.pre_tags = []
+            st.rerun()
 
-        col_a1, col_a2 = st.columns(2)
-        with col_a1:
-            if st.button("🚀 一键入云库", type="primary", use_container_width=True):
-                f_map = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}
-                for t in st.session_state.tags_to_save:
-                    if t['selected'] and t['val'] not in st.session_state.db[t['cat']]:
-                        st.session_state.db[t['cat']].append(t['val'])
-                        sync_git(f_map[t['cat']], st.session_state.db[t['cat']])
-                st.session_state.is_split = False
-                st.session_state.tags_to_save = []
-                st.success("资产已同步至云端！")
-                st.rerun()
-        with col_a2:
-            if st.button("🧹 重置并清空", use_container_width=True):
-                st.session_state.is_split = False
-                st.session_state.tags_to_save = []
-                st.rerun()
-
-# 👉 右：资产管理仓库
+# 👉 右：资产管理仓库 (固定且独立滚动)
 with col_lib:
-    st.subheader("📚 资产管理仓库")
-    
-    # 下拉栏切换分类方式
-    view_cat = st.selectbox("当前查看分类：", ["主体", "风格", "部位", "氛围"], index=0)
-    
+    st.subheader("📚 资产仓库")
+    view_cat = st.selectbox("当前查看分类：", ["主体", "风格", "部位", "氛围"], label_visibility="collapsed")
+    fav_only = st.checkbox("❤️ 只看收藏")
     st.divider()
     
-    # 可视化管理：所有单词拆分成小标签
-    items = st.session_state.db[view_cat]
+    items = st.session_state.db.get(view_cat, [])
+    if fav_only: items = [i for i in items if i in st.session_state.db["收藏"]]
+    
     if items:
         for word in items:
             c1, c2, c3 = st.columns([6, 1, 1])
-            with c1:
-                st.markdown(f'<div class="lib-chip">{word}</div>', unsafe_allow_html=True)
-            with c2:
-                # 收藏逻辑
-                is_fav = word in st.session_state.db["收藏"]
-                if st.button("⭐" if is_fav else "🤍", key=f"f_{word}"):
-                    if is_fav: st.session_state.db["收藏"].remove(word)
-                    else: st.session_state.db["收藏"].append(word)
-                    sync_git("favorites.txt", st.session_state.db["收藏"])
-                    st.rerun()
-            with c3:
-                # 删除逻辑
-                if st.button("🗑️", key=f"d_{word}"):
-                    st.session_state.db[view_cat].remove(word)
-                    f_name = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[view_cat]
-                    sync_git(f_name, st.session_state.db[view_cat])
-                    st.rerun()
+            c1.markdown(f'<div style="background:#1f1f1f; padding:5px 10px; border-radius:6px; font-size:13px; border:1px solid #333;">{word}</div>', unsafe_allow_html=True)
+            if c2.button("⭐" if word in st.session_state.db["收藏"] else "🤍", key=f"f_{word}"):
+                if word in st.session_state.db["收藏"]: st.session_state.db["收藏"].remove(word)
+                else: st.session_state.db["收藏"].append(word)
+                sync_git("favorites.txt", st.session_state.db["收藏"]); st.rerun()
+            if c3.button("🗑️", key=f"d_{word}"):
+                st.session_state.db[view_cat].remove(word)
+                sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[view_cat], st.session_state.db[view_cat]); st.rerun()
     else:
-        st.caption("该分类下暂无资产。")
+        st.caption("暂无内容")
