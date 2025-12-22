@@ -11,33 +11,34 @@ st.set_page_config(page_title="Tattoo Pro Station", layout="wide", initial_sideb
 
 
 # --- 定位：搜索 <style> 里的碎片样式部分 ---
+# --- 强制横向排版补丁 ---
 st.markdown("""
     <style>
-    /* 1. 锁死页面高度，禁止整页滚动 */
-    html, body, [data-testid="stAppViewContainer"] {
-        overflow: hidden !important; height: 100vh !important;
-    }
-    header {visibility: hidden;} .block-container { padding: 0 !important; }
-
-    /* 2. 【核心定位】强行让所有 Checkbox 容器变成横向平铺 */
-    /* 这段代码会抓住你截图中那些竖着排的方块，强行让它们并排 */
+    /* 1. 强制所有相邻的碎片横着排，不准换行 */
+    /* 这里的选择器直接瞄准你截图 166 行生成的那个 checkbox 容器 */
     [data-testid="stVerticalBlock"] > div:has([data-testid="stCheckbox"]) {
         display: flex !important;
-        flex-direction: row !important; /* 横排 */
-        flex-wrap: wrap !important;     /* 满了自动换行 */
-        gap: 8px !important;            /* 间距 */
+        flex-direction: row !important; /* 横向排列 */
+        flex-wrap: wrap !important;     /* 自动折行 */
+        gap: 8px !important;            /* 碎片间距 */
     }
 
-    /* 3. 碎片样式美化，防止它拉伸成面条 */
+    /* 2. 砍掉 Streamlit 给方块加的“公摊面积” */
     [data-testid="stCheckbox"] {
-        flex: 0 1 auto !important;
+        flex: 0 1 auto !important;      /* 宽度由文字决定，不准占满行 */
         width: auto !important;
-        background: #1f2428 !important;
+        background: #1f2428 !important; 
         border: 1px solid #444 !important;
-        padding: 2px 10px !important;
         border-radius: 6px !important;
+        padding: 4px 12px !important;
+        margin: 0 !important;
     }
-    [data-testid="stCheckbox"] p { font-size: 14px !important; white-space: nowrap !important; }
+
+    /* 3. 视觉精修：让文字横着排，不准被拉长 */
+    [data-testid="stCheckbox"] [data-testid="stWidgetLabel"] p {
+        font-size: 14px !important;
+        white-space: nowrap !important; /* 禁止文字内换行 */
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -249,6 +250,7 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
 
