@@ -48,39 +48,38 @@ col_main, col_gallery = st.columns([5, 2])
 # --- 右侧：资产预览 (素材仓库) ---
 with col_gallery:
     st.subheader("📦 仓库管理")
-    mode = st.radio("预览模式", ["素材仓库", "灵感成品"], horizontal=True)
+    mode = st.radio("切换预览", ["素材仓库", "灵感成品"], horizontal=True)
     
     if mode == "素材仓库":
         cat = st.selectbox("当前分类", list(WAREHOUSE.keys()))
         words = get_github_data(WAREHOUSE[cat])
         
         if words:
+            st.caption(f"共 {len(words)} 个标签。勾选想要清理的项：")
             selected_to_delete = []
-            st.caption(f"当前共有 {len(words)} 个标签，勾选即可管理：")
             
-            # --- 核心改进：列表勾选模式 ---
+            # 建立一个带滚动条的列表区域
             with st.container(height=500, border=True):
                 for w in words:
-                    # 使用唯一的 key 防止冲突
-                    if st.checkbox(f" {w}", key=f"manage_{cat}_{w}"):
+                    # 每个单词前面一个勾选框
+                    if st.checkbox(f" {w}", key=f"del_{cat}_{w}"):
                         selected_to_delete.append(w)
             
-            # --- 只有选中了单词，才在下面出现删除按钮 ---
+            # 只有勾选了东西，底部才出现删除大红按钮
             if selected_to_delete:
                 st.divider()
-                st.warning(f"已选中 {len(selected_to_delete)} 个标签")
-                if st.button(f"🗑️ 确认批量删除所选", type="primary", use_container_width=True):
+                st.error(f"已选中 {len(selected_to_delete)} 个标签")
+                if st.button("🗑️ 确认批量删除所选", type="primary", use_container_width=True):
                     remaining = [w for w in words if w not in selected_to_delete]
-                    with st.spinner("正在同步云端..."):
-                        if save_to_github(WAREHOUSE[cat], remaining):
-                            st.success("清理完成！")
-                            time.sleep(1)
-                            st.rerun()
+                    if save_to_github(WAREHOUSE[cat], remaining):
+                        st.success("清理完成！")
+                        time.sleep(1)
+                        st.rerun()
         else:
             st.info("分类下暂无素材")
             
     else:
-        # 灵感成品同样改为勾选删除逻辑
+        # 灵感成品管理逻辑同上...
         insps = get_github_data(GALLERY_FILE)
         if insps:
             selected_insps = []
@@ -88,14 +87,10 @@ with col_gallery:
                 for i in insps:
                     if st.checkbox(i, key=f"del_insp_{hash(i)}"):
                         selected_insps.append(i)
-            
-            if selected_insps:
-                if st.button(f"🗑️ 批量删除灵感 ({len(selected_insps)})", type="primary", use_container_width=True):
-                    remaining_insp = [i for i in insps if i not in selected_insps]
-                    save_to_github(GALLERY_FILE, remaining_insp)
-                    st.rerun()
-        else:
-            st.caption("灵感库为空")
+            if selected_insps and st.button(f"🗑️ 批量删除灵感 ({len(selected_insps)})", type="primary", use_container_width=True):
+                remaining_insp = [i for i in insps if i not in selected_insps]
+                save_to_github(GALLERY_FILE, remaining_insp)
+                st.rerun()
 # --- 左侧：核心生成区 ---
 with col_main:
     st.info("💡 逻辑：从右侧仓库随机抽取标签组合，再由 DeepSeek 进行艺术化润色。")
