@@ -1,65 +1,69 @@
-# style_manager.py
 import streamlit as st
 
 def apply_pro_style():
-    # 1. 视觉装修：放大左侧导航文字，移除冗余
+    """全站视觉装修：放大导航、调暗侧边栏、美化文字"""
     st.markdown("""
     <style>
+        /* 1. 整体暗色调 */
         .stApp { background-color: #0f1014; }
         
-        /* 📍 放大左侧侧边栏页码导航文字 */
+        /* 2. 📍 重点：放大左侧原生的 app, creative, automation 导航文字 */
         [data-testid="stSidebarNav"] ul li div p {
-            font-size: 18px !important; 
+            font-size: 20px !important; 
             font-weight: 600 !important;
             color: #c9d1d9 !important;
-            padding: 5px 0;
-        }
-        
-        /* 侧边栏整体宽度调整 */
-        section[data-testid="stSidebar"] {
-            min-width: 200px !important;
+            padding: 8px 0 !important;
         }
 
-        /* 统计文字样式 */
-        .sidebar-footer {
-            position: fixed;
-            bottom: 20px;
-            width: 160px;
+        /* 侧边栏整体背景与边框 */
+        section[data-testid="stSidebar"] {
+            background-color: #16171d !important;
+            border-right: 1px solid #262730 !important;
         }
+
+        /* 3. 统计文字的专业排版 (左边字，右边数) */
         .metric-row {
             display: flex;
             justify-content: space-between;
             font-size: 14px;
             color: #8b949e;
-            margin-bottom: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid #262730;
+        }
+        .metric-val {
+            color: #ffffff !important;
+            font-weight: bold;
             font-family: monospace;
         }
-        .metric-row span:last-child {
-            color: #ffffff;
-            font-weight: bold;
-        }
+
+        /* 隐藏 Streamlit 默认的页脚和多余元素 */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 📍 新增：全站统一侧边栏渲染函数
 def render_unified_sidebar(counts_dict):
+    """📍 全站统一侧边栏：放在每个页面的最开头"""
     with st.sidebar:
-        # 顶部的 Logo 区域
+        # 顶部的品牌 Logo 区域
         st.markdown("### 🛰️ ALIEN MOOD")
         st.caption("Frame...")
         
-        # 留出空间给导航
-        st.markdown("<br>" * 10, unsafe_allow_html=True)
+        # 留出足够的垂直空间，让导航文字之间不拥挤
+        st.markdown("<br>" * 8, unsafe_allow_html=True)
         
-        # 底部统计状态 (不管哪个页面都显示)
-        st.divider()
-        st.markdown("**统计状态**")
+        # 底部常驻的统计状态
+        st.markdown("---")
+        st.markdown("**库存统计**")
+        
+        # 循环显示你传入的统计数据
         for label, val in counts_dict.items():
             st.markdown(f'''
                 <div class="metric-row">
                     <span>{label}:</span>
-                    <span>{val}</span>
+                    <span class="metric-val">{val}</span>
                 </div>
             ''', unsafe_allow_html=True)
         
-        # 彻底删掉登录按钮
+        # 📍 彻底删除登录按钮，不再显示
