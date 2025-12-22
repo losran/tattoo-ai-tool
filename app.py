@@ -1,64 +1,69 @@
 import streamlit as st
-import time
-from style_manager import apply_global_frame, render_global_warehouse
+import random, time
+from style_manager import apply_global_frame, render_global_sidebar
 
-# --- 1. 状态记忆 ---
+# --- 1. 记忆初始化 ---
 if "input_val" not in st.session_state: st.session_state.input_val = ""
-if "preview_tags" not in st.session_state: st.session_state.preview_tags = []
+if "is_warehouse_open" not in st.session_state: st.session_state.is_warehouse_open = True
 
 st.set_page_config(layout="wide")
-apply_global_frame()       # 刷墙（固定层级布局）
-render_global_warehouse()  # 立柜（固定镜像仓库）
+apply_global_frame()       # 刷墙（固定右侧物理层级）
+render_global_sidebar()    # 立柱（左侧常驻统计）
 
-# --- 2. 侧边栏常驻统计 ---
-with st.sidebar:
-    st.markdown("<br>" * 10, unsafe_allow_html=True)
-    st.markdown('<div class="metric-footer">', unsafe_allow_html=True)
-    st.caption("库存统计")
-    counts = {"主体": 28, "风格": 28, "动作": 15, "氛围": 12}
-    for label, val in counts.items():
-        st.markdown(f'<div class="metric-item"><span>{label}:</span><b>{val}</b></div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# --- 3. 核心业务区 (智能入库) ---
-# 包在 main-slot 里，自动避开右侧仓库
-st.markdown('<div class="main-slot">', unsafe_allow_html=True)
-st.title("⚡ 智能入库")
-
-# 输入框
-st.session_state.input_val = st.text_area(
-    "输入提示词：", 
-    value=st.session_state.input_val, 
-    height=350, 
-    placeholder="在此输入需要拆解的内容...",
-    label_visibility="collapsed"
-)
-
-# AI 预览区：只有拆分后才显示
-if st.session_state.preview_tags:
-    st.markdown("#### AI 预览 (选择入库词汇)")
-    cols = st.columns(5)
-    selected_to_cloud = []
-    for i, tag in enumerate(st.session_state.preview_tags):
-        with cols[i % 5]:
-            # 这里的 toggle 实现了你要求的“选择高亮”
-            if st.toggle(tag, value=True, key=f"tg_{i}"):
-                selected_to_cloud.append(tag)
-
-# 底部功能切换按钮
-st.write("")
-if not st.session_state.preview_tags:
-    if st.button("🚀 开始拆分", type="primary", use_container_width=True):
-        with st.status("AI 正在解析标签结构...") as s:
-            time.sleep(1)
-            st.session_state.preview_tags = ["日式", "纹身", "红色", "old school"]
-            s.update(label="拆分完成！", state="complete")
+# --- 2. 顶层开关：镜像原生闭合逻辑 ---
+btn_col1, btn_col2 = st.columns([12, 1.2])
+with btn_col2:
+    icon = "❯" if st.session_state.is_warehouse_open else "❮ 仓库"
+    if st.button(icon, key="creative_toggle"):
+        st.session_state.is_warehouse_open = not st.session_state.is_warehouse_open
         st.rerun()
+
+# --- 3. 核心平级布局 ---
+if st.session_state.is_warehouse_open:
+    col_main, col_right = st.columns([5, 1.8]) # 这里的 col_right 会被 CSS 强制固定
 else:
-    if st.button("✅ 一键入库", type="primary", use_container_width=True):
-        st.success(f"已将选中标签同步至右侧仓库！")
-        st.session_state.preview_tags = [] # 清空预览流
-        time.sleep(1)
-        st.rerun()
+    col_main = st.container()
 
-st.markdown('</div>', unsafe_allow_html=True)
+# --- 4. 中间业务：创意灵感区 ---
+with col_main:
+    st.title("🎨 创意引擎")
+    st.info("💡 灵感匮乏？从右侧仓库点选素材，或在下方直接构建提示词。")
+    
+    # 绑定全局记忆，实现右侧点选导入
+    st.session_state.input_val = st.text_area("创意编辑区", value=st.session_state.input_val, height=450, label_visibility="collapsed")
+
+    st.write("")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🪄 随机灵感组合", use_container_width=True):
+            tags = ["机械", "复古", "极简", "重彩"]
+            picked = random.choice(tags)
+            st.session_state.input_val += f" {picked}"
+            st.toast(f"注入灵感: {picked}")
+            time.sleep(0.5)
+            st.rerun()
+    with c2:
+        if st.button("🔥 生成创意方案", type="primary", use_container_width=True):
+            with st.status("正在联想视觉方案...") as s:
+                time.sleep(1)
+                s.update(label="方案已生成！", state="complete")
+
+# --- 5. 右侧镜像仓库：层级平齐、物理固定 ---
+if st.session_state.is_warehouse_open:
+    with col_right:
+        st.markdown("### 📦 素材仓库")
+        st.selectbox("分类选择", ["Subject", "Style"], label_visibility="collapsed")
+        
+        words = ["old school", "日式传统", "非常长的藤蔓纹路换行测试", "浮世绘"]
+        st.write("")
+        for idx, w in enumerate(words):
+            # 极简组合：左边加词，右边删词
+            t_col, x_col = st.columns([5, 1.2], gap="small")
+            with t_col:
+                if st.button(f" {w}", key=f"cr_add_{idx}", use_container_width=True):
+                    st.session_state.input_val += f" {w}"
+                    st.rerun()
+            with x_col:
+                if st.button("✕", key=f"cr_del_{idx}"):
+                    st.toast(f"已清理: {w}")
+                    st.rerun()
