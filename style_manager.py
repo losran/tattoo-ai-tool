@@ -4,51 +4,40 @@ import streamlit as st
 def apply_pro_style():
     st.markdown("""
     <style>
-        /* 1. 📍 物理抹除顶部所有无用图标 (Share, Star, GitHub等) */
-        [data-testid="stHeader"] {
-            background-color: rgba(0,0,0,0) !important;
-        }
-        [data-testid="stHeader"] > div:first-child {
-            display: none !important; /* 彻底隐藏那一排小图标 */
-        }
-
-        /* 2. 锁定全局背景 */
+        /* 1. 锁定背景与隐藏杂物 */
         .stApp { background-color: #0f1014; }
+        [data-testid="stHeader"] { background: transparent !important; }
+        [data-testid="stHeader"] > div:first-child { display: none !important; }
 
-        /* 3. 放大左侧导航文字 */
-        [data-testid="stSidebarNav"] ul li div p {
-            font-size: 20px !important; 
-            font-weight: 600 !important;
-            color: #c9d1d9 !important;
-        }
-
-        /* 4. 📍 右侧伪装栏：强制置顶对齐，无视顶部间距 */
+        /* 2. 📍 右侧“侧边栏”：镜像左侧样式 */
         [data-testid="column"]:nth-child(2) {
             background-color: #16171d !important;
             border-left: 1px solid #262730 !important;
-            padding: 20px 15px !important;
+            padding: 40px 15px !important; /* 顶开一点，给展开按钮留位 */
             height: 100vh !important;
             position: fixed !important;
-            right: 0;
-            top: 0;
-            z-index: 100;
+            right: 0; top: 0; z-index: 99;
         }
 
-        /* 5. 📍 组合标签：文字和叉号合并为一个视觉整体 */
-        .stButton > button {
-            border: 1px solid #262730 !important;
-            background: #1a1b23 !important;
-            color: #c9d1d9 !important;
-            width: 100% !important;
-            padding: 5px 12px !important;
-            text-align: left !important;
-            border-radius: 4px !important;
+        /* 3. 📍 极简标签：文字和叉号真正在同一个框里 */
+        .tag-pill {
+            display: flex;
+            align-items: center;
+            background: #1a1b23;
+            border: 1px solid #262730;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            padding: 2px 10px;
+            transition: 0.2s;
         }
-        .stButton > button:hover {
-            border-color: #ff4b4b !important;
+        .tag-pill:hover { border-color: #ff4b4b; background: #211d1d; }
+        
+        /* 统一左侧导航字体 */
+        [data-testid="stSidebarNav"] ul li div p {
+            font-size: 20px !important; font-weight: 600 !important;
         }
 
-        /* 侧边栏底部统计 */
+        /* 底部统计状态 */
         .metric-footer { border-top: 1px solid #262730; padding-top: 15px; margin-top: 20px; }
         .metric-item { display: flex; justify-content: space-between; font-size: 13px; color: #8b949e; }
     </style>
