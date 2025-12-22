@@ -79,75 +79,91 @@ with col_nav:
     for k in ["主体", "风格", "部位", "氛围"]:
         html += f'<div class="nav-item"><div style="font-size:10px;color:#888">{k}</div><div class="nav-val">{len(st.session_state.db.get(k, []))}</div></div>'
     st.markdown(html + '</div>', unsafe_allow_html=True)
-
-# 👉 中：生产大爆炸
-# 👉 中：生产大爆炸 (整段替换)
+# 👉 中间：操作核心区
 with col_mid:
     st.title("✨ 灵感大爆炸拆解")
     
-    # 1. 输入框
+    # 1. 输入框 (使用动态 ID 确保清空)
     raw = st.text_area("粘贴样板描述", height=150, key=f"in_{st.session_state.input_id}")
     
-    # 2. 拆解按钮逻辑 (先执行逻辑，存入状态)
-    if st.button("🔍 立即拆解", type="primary", use_container_width=True):
+    # 2. 🔍 拆解执行按钮 (这里只写逻辑，不写显示)
+    if st.button("🔍 立即炸开碎片", type="primary", use_container_width=True):
         if raw:
-            with st.spinner("碎裂中..."):
-                # --- [TEST: API 请求] ---
+            with st.spinner("💥 正在执行大爆炸拆解..."):
+                # --- [TEST: API请求测试] ---
                 res = client.chat.completions.create(
                     model="deepseek-chat",
                     messages=[
-                        {"role": "system", "content": "要求：Subject:词|Action:词|Style:词|Mood:词|Usage:词。词要拆得极细，禁止废话。"},
+                        {"role": "system", "content": "格式: Subject:词|Action:词|Style:词|Mood:词|Usage:词。词要拆得极细，禁止废话。"},
                         {"role": "user", "content": raw}
                     ],
                     temperature=0.1
                 ).choices[0].message.content
                 
-                # --- [TEST: 解析清洗] ---
+                # --- [TEST: 强力解析清洗测试] ---
                 parsed = []
+                # 剥除 AI 乱加的星号和空行
                 clean_res = res.replace("**", "").replace("：", ":").replace("\n", "|")
                 for p in clean_res.split("|"):
                     if ":" in p:
                         k, v = p.split(":", 1)
-                        # 兼容你指定的五维分类
+                        # 模糊匹配五维分类
                         found_cat = None
                         for target in ["Subject", "Action", "Style", "Mood", "Usage"]:
                             if target.lower() in k.lower(): found_cat = target; break
                         
                         if found_cat:
-                            # 强力炸开碎片
+                            # 极致打碎：识别所有间隔符
                             bits = v.replace("、", "/").replace(",", "/").replace(" ", "/").split("/")
                             for b in bits:
                                 if b.strip(): parsed.append({"cat": found_cat, "val": b.strip()})
                 
                 if parsed:
                     st.session_state.pre_tags = parsed
-                    # 只有拆成功了才清空输入框
-                    st.session_state.input_id += 1 
-                    st.rerun() 
+                    st.session_state.input_id += 1 # 成功后清空输入框
+                    st.rerun() # 强制引爆，刷新显示预览区
                 else:
-                    st.error(f"❌ 解析失败。AI原文：{res}")
+                    st.error(f"❌ 诊断失败：AI返回格式无法解析。原文：{res}")
 
-    # 3. 🏁 碎片预览区 (必须在按钮外面，这样刷新后才能看见)
+    # 3. 🏁 碎片预览区 (必须在 if st.button 之外！这样它才会乖乖待在中间)
     if st.session_state.pre_tags:
         st.write("---")
         st.subheader("📋 碎片预览 (勾选想要入库的)")
         
         save_list = []
-        # 按指定五维顺序展示
         order = ["Subject", "Action", "Style", "Mood", "Usage"]
         
         for display_cat in order:
             words = [t for t in st.session_state.pre_tags if t['cat'] == display_cat]
             if words:
                 st.markdown(f"**📍 {display_cat}**")
-                cols = st.columns(3)
+                cols = st.columns(3) # 保持碎片并排炸开
                 for i, w in enumerate(words):
                     with cols[i % 3]:
-                        # 加上 input_id 确保 key 永远唯一，防止状态卡死
-                        k = f"pre_{display_cat}_{i}_{st.session_state.input_id}"
-                        if st.checkbox(w['val'], value=True, key=k):
+                        # 唯一 Key 保护测试
+                        k_id = f"pre_{display_cat}_{i}_{st.session_state.input_id}"
+                        if st.checkbox(w['val'], value=True, key=k_id):
                             save_list.append(w)
         
+        # 4. 确认按钮组 (锁死在预览区底部)
+        st.write("")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🚀 一键入云库", type="primary", use_container_width=True):
+                # 对应你的文件同步字典
+                f_map = {"Subject":"subjects.txt","Action":"actions.txt","Style":"styles.txt","Mood":"moods.txt","Usage":"usage.txt"}
+                for t in save_list:
+                    # 只有库里没有的才存入
+                    if t['val'] not in st.session_state.db.get(t['cat'], []):
+                        st.session_state.db.setdefault(t['cat'], []).append(t['val'])
+                        sync_git(f_map.get(t['cat'], "misc.txt"), st.session_state.db[t['cat']])
+                st.session_state.pre_tags = []
+                st.success("入库成功！")
+                time.sleep(1); st.rerun()
+        with c2:
+            if st.button("🧹 扫走碎片", use_container_width=True):
+                st.session_state.pre_tags = []
+                st.rerun() 
         # 4. 入库与清空操作
         st.write("")
         c1, c2 = st.columns(2)
@@ -244,6 +260,7 @@ with col_lib:
                 sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[cat], st.session_state.db[cat])
                 st.rerun()
     else: st.caption("空空如也")
+
 
 
 
