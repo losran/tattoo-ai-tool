@@ -243,45 +243,45 @@ with col_main:
                     else: st.session_state.selected_prompts.append(p)
                     st.rerun()
 
-                if st.session_state.selected_prompts:
-                            if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
-                                with st.spinner("AI 正在注入艺术灵魂..."):
-                                    # 1. 拼接用户选中的原始标签
-                                    combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
-                                    
-                                    # 2. 升级版 System Prompt：强制扩写、画面联想、流畅表达
-                                    system_prompt = f"""
-                                    你是一位【顶级纹身艺术总监】。你的任务是将用户提供的零散标签，重构为一段【画面感极强、行文流畅】的视觉描述。
-                
-                                    【润色规则 - 必须遵守】：
-                                    1. **拒绝堆砌**：绝对禁止使用“+”号或简单的词语罗列。必须将标签串联成通顺优美的中文长句。
-                                    2. **细节脑补**：根据标签自动联想细节。
-                                       - 比如标签是“猫”，你要扩写为“一只神态慵懒的猫，毛发呈现液态金属的光泽”。
-                                       - 比如标签是“极简”，你要描述“线条干净利落，如同手术刀般精准”。
-                                    3. **混乱度(Chaos)响应**：当前混乱度参数为 {chaos_level}/100。
-                                       - 如果 < 30：保持克制，精准还原，注重优雅。
-                                       - 如果 > 70：大胆加入超现实细节、怪诞的构图、意想不到的元素碰撞（符合 Alien Mood 调性）。
-                                    4. **格式要求**：每行一个方案，格式严格为：'**方案X：** 你的描述...'。
-                
-                                    【待润色内容】：
-                                    {combined_input}
-                                    """
-                                    
-                                    try:
-                                        res = client.chat.completions.create(
-                                            model="deepseek-chat",
-                                            messages=[
-                                                {"role": "system", "content": system_prompt},
-                                                {"role": "user", "content": "请开始润色。"}
-                                            ],
-                                            temperature=0.7 + (chaos_level / 200) # 让温度随混乱度动态变化
-                                        ).choices[0].message.content
-                                        
-                                        st.session_state.polished_text = res
-                                        st.rerun()
-                                        
-                                    except Exception as e:
-                                        st.error(f"润色失败: {e}")
+if st.session_state.selected_prompts:
+            if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
+                with st.spinner("AI 正在注入艺术灵魂..."):
+                    # 1. 拼接用户选中的原始标签
+                    combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
+                    
+                    # 2. 升级版 System Prompt：强制扩写、画面联想、流畅表达
+                    system_prompt = f"""
+                    你是一位【顶级纹身艺术总监】。你的任务是将用户提供的零散标签，重构为一段【画面感极强、行文流畅】的视觉描述。
+
+                    【润色规则 - 必须遵守】：
+                    1. **拒绝堆砌**：绝对禁止使用“+”号或简单的词语罗列。必须将标签串联成通顺优美的中文长句。
+                    2. **细节脑补**：根据标签自动联想细节。
+                       - 比如标签是“猫”，你要扩写为“一只神态慵懒的猫，毛发呈现液态金属的光泽”。
+                       - 比如标签是“极简”，你要描述“线条干净利落，如同手术刀般精准”。
+                    3. **混乱度(Chaos)响应**：当前混乱度参数为 {chaos_level}/100。
+                       - 如果 < 30：保持克制，精准还原，注重优雅。
+                       - 如果 > 70：大胆加入超现实细节、怪诞的构图、意想不到的元素碰撞（符合 Alien Mood 调性）。
+                    4. **格式要求**：每行一个方案，格式严格为：'**方案X：** 你的描述...'。
+
+                    【待润色内容】：
+                    {combined_input}
+                    """
+                    
+                    try:
+                        res = client.chat.completions.create(
+                            model="deepseek-chat",
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": "请开始润色。"}
+                            ],
+                            temperature=0.7 + (chaos_level / 200) # 让温度随混乱度动态变化
+                        ).choices[0].message.content
+                        
+                        st.session_state.polished_text = res
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"润色失败: {e}")               
 
     # 最终结果展示
     if st.session_state.get('polished_text'):
