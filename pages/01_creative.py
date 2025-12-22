@@ -184,44 +184,43 @@ with col_main:
         # 数字输入框
         num = st.number_input("数量", 1, 15, 3, label_visibility="collapsed")
         
-# 3. 激发按钮
-        with c_btn:
-            if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
-                # 🔴 关键修复：点击瞬间清空你的 generated_cache，防止无限叠加
-                st.session_state.generated_cache = [] 
-                
-                # 这里为了适配当前文件，用了 st.session_state.db
-                # 如果你原本有 WAREHOUSE 变量，把下面这行改回你的写法即可
-                db_values = [v for v in st.session_state.db.values() if v] 
-                
-                if not db_values:
-                    st.error("仓库里没词，没法自动跑啊哥们！")
-                else:
-                    for _ in range(mix_num):
-                        # 1. 获取输入 (兼容你的 manual_editor，如果没有就读 input_val)
-                        raw_input = st.session_state.get('manual_editor', st.session_state.get('input_val', ""))
-                        manual_words = raw_input.split() if isinstance(raw_input, str) else []
-                        
-                        # 2. 你的算法逻辑：混乱度决定抓多少词
-                        extra_count = 2 if chaos_level < 30 else (4 if chaos_level < 70 else 6)
-                        extra = []
-                        
-                        import random
-                        # 筛选出有内容的分类
-                        valid_cats = [k for k, v in st.session_state.db.items() if v]
-                        if valid_cats:
-                            for _ in range(extra_count):
-                                random_cat = random.choice(valid_cats)
-                                extra.append(random.choice(st.session_state.db[random_cat]))
-                        
-                        # 3. 组合
-                        combined_p = " + ".join(filter(None, manual_words + extra))
-                        
-                        # 🔴 存入你的变量 generated_cache
-                        st.session_state.generated_cache.append(combined_p)
+with col_trigger:
+        do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
+        
+        if do_generate:
+            # 先清空旧的润色和缓存，防止叠加
+            st.session_state.polished_text = "" 
+            st.session_state.generated_cache = []
+            
+            # 获取数据 (保留你的写法)
+            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
+            
+            if not any(db_all.values()):
+                st.error("仓库里没词，没法自动跑啊哥们！")
+            else:
+                import random
+                for _ in range(num): # num 是你上面定义的数量变量
+                    raw_input = st.session_state.get('manual_editor', "")
+                    manual_words = raw_input.split() if isinstance(raw_input, str) else []
                     
-                    st.toast(f"已生成 {len(st.session_state.generated_cache)} 个组合")
-                    st.rerun()
+                    # 你的混乱度算法
+                    extra_count = 2 if chaos_level < 30 else (4 if chaos_level < 70 else 6)
+                    extra = []
+                    
+                    # 筛选有效分类防止报错
+                    valid_cats = [k for k, v in db_all.items() if v]
+                    
+                    if valid_cats:
+                        for _ in range(extra_count):
+                            random_cat = random.choice(valid_cats)
+                            extra.append(random.choice(db_all[random_cat]))
+                    
+                    combined_p = " + ".join(filter(None, manual_words + extra))
+                    
+                    # 存入你的缓存 list
+                    st.session_state.generated_cache.append(combined_p)
+                
+                st.rerun()
 
         # 4. 交互核心区：点击变红 (渲染 generated_cache)
         # 这里的 generated_cache 就是你原来的变量，我只是加上了“点击变色”的 UI 逻辑
