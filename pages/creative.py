@@ -1,7 +1,9 @@
 import streamlit as st
 import requests, base64, random
+from openai import OpenAI
 
-# --- 1. 配置 (保持与 app.py 一致) ---
+# --- 1. 基础配置 (千万不要改动这部分) ---
+client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO = "losran/tattoo-ai-tool"
 FILES = {
@@ -9,7 +11,7 @@ FILES = {
     "Style": "styles.txt", "Mood": "moods.txt", "Usage": "usage.txt"
 }
 
-# --- 2. 工具函数 (从 GitHub 读数据) ---
+# --- 2. 工具函数 ---
 def get_data(filename):
     url = f"https://api.github.com/repos/{REPO}/contents/data/{filename}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -18,73 +20,83 @@ def get_data(filename):
         return [line.strip() for line in base64.b64decode(resp.json()['content']).decode().splitlines() if line.strip()]
     return []
 
-# --- 3. 页面布局 ---
+def polish_prompts_chinese(prompt_list):
+    combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(prompt_list)])
+    system_prompt = "你是一个顶级的纹身艺术顾问。将标签转化为一段优美、有画面感的中文提示词。每条方案只输出一段话，不要废话。"
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"请润色以下纹身创意标签：\n{combined_input}"}
+            ],
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"润色失败: {str(e)}"
+
+# --- 3. 初始化状态 ---
+if 'selected_prompts' not in st.session_state:
+    st.session_state.selected_prompts = []
+if 'generated_cache' not in st.session_state:
+    st.session_state.generated_cache = []
+if 'polished_text' not in st.session_state:
+    st.session_state.polished_text = ""
+
+# --- 4. 页面布局 ---
 st.title("🎨 创意灵感引擎")
+col_left, col_main, col_right = st.columns([1, 4, 2])
 
-# 同样使用三栏布局
-c_left, c_main, c_right = st.columns([1, 4, 2])
-
-# 👉 右栏：仓库预览 (实时查看你的库存)
-with c_right:
+with col_right:
     st.subheader("📦 素材预览")
     cat_view = st.selectbox("查看维度", list(FILES.keys()))
-    # 每次切换都重新读，确保数据最新
     words = get_data(FILES[cat_view])
     with st.container(height=600):
         for w in words:
             st.button(w, key=f"btn_{w}", use_container_width=True)
 
-# 👉 中栏：创意生成核心
-with c_main:
-    # 1. 上传图片区
-    st.markdown("### 📸 参考图反推")
-    uploaded_file = st.file_uploader("上传纹身参考图", type=["jpg", "png"])
-    if uploaded_file:
-        st.image(uploaded_file, width=200)
-        st.caption("已识别图片特征：(这里后续接入反推逻辑)")
-
-    st.divider()
-
-    # 2. 随机生成控制
+with col_main:
     st.markdown("### 🎲 灵感拼装")
-    num_gen = st.slider("一次生成几条创意？", 1, 10, 3)
+    num_gen = st.slider("生成几条创意？", 1, 10, 3)
     
     if st.button("🔥 一键生成创意提示词", type="primary", use_container_width=True):
-            st.subheader("💡 灵感方案库")
-            
-            # 预先拉取所有维度的词库，减少 API 调用次数
-            db_all = {}
-            with st.spinner("正在从云端调取灵感素材..."):
-                for cat, fname in FILES.items():
-                    db_all[cat] = get_data(fname)
-    
-            # 模拟瀑布流展示
-            cols = st.columns(2) 
-            for i in range(num_gen):
-                # 核心抽样：从 5 个分类里各摇一个词
-                sample_tags = []
-                for cat in ["Subject", "Action", "Style", "Mood", "Usage"]:
-                    pool = db_all.get(cat, [])
-                    if pool:
-                        sample_tags.append(random.choice(pool))
-                    else:
-                        sample_tags.append(f"[{cat}]") # 如果某分类没词，用占位符兜底
-    
-                # 渲染方案卡片
-                with cols[i % 2]:
-                    with st.container(border=True):
-                        # 拼装成提示词
-                        final_prompt = " + ".join(sample_tags)
-                        st.markdown(f"**方案 {i+1}**")
-                        st.info(final_prompt) # 用蓝色框显得更醒目
-                        
-                        # 复制按钮 (Streamlit 原生暂不支持直接写剪贴板，先用 code 块方便手动复制)
-                        st.code(final_prompt, language="text")
-                        
-                        if st.button(f"选中并导出方案 {i+1}", key=f"sel_{i}"):
-                            st.balloons() # 庆祝一下
-                            st.success("已标记为首选方案！")
+        st.session_state.generated_cache = []
+        db_all = {k: get_data(v) for k, v in FILES.items()}
+        for i in range(num_gen):
+            sample = [random.choice(db_all[cat]) if db_all[cat] else f"[{cat}]" for cat in ["Subject", "Action", "Style", "Mood", "Usage"]]
+            st.session_state.generated_cache.append(" + ".join(sample))
+        st.rerun()
 
-# 👉 左栏：占位
-with c_left:
-    st.info("💡 提示：点击右侧单词可快速查看详情（开发中）")
+    if st.session_state.generated_cache:
+        st.subheader("💡 灵感方案库")
+        cols = st.columns(2)
+        for idx, prompt in enumerate(st.session_state.generated_cache):
+            with cols[idx % 2]:
+                is_selected = prompt in st.session_state.selected_prompts
+                with st.container(border=True):
+                    st.markdown(f"**方案 {idx+1}** {' ✅' if is_selected else ''}")
+                    st.info(prompt)
+                    btn_label = "取消选择" if is_selected else "勾选此方案"
+                    if st.button(btn_label, key=f"sel_btn_{idx}", use_container_width=True):
+                        if prompt in st.session_state.selected_prompts:
+                            st.session_state.selected_prompts.remove(prompt)
+                        else:
+                            st.session_state.selected_prompts.append(prompt)
+                        st.rerun()
+
+    if st.session_state.selected_prompts:
+        st.divider()
+        st.markdown(f"### 🛒 已选中 ({len(st.session_state.selected_prompts)}) 条方案")
+        c1, c2 = st.columns(2)
+        if c1.button("✨ DeepSeek 艺术润色", type="primary", use_container_width=True):
+            with st.spinner("构思中..."):
+                st.session_state.polished_text = polish_prompts_chinese(st.session_state.selected_prompts)
+        if c2.button("🗑️ 清空选中", use_container_width=True):
+            st.session_state.selected_prompts = []
+            st.session_state.polished_text = ""
+            st.rerun()
+
+        if st.session_state.polished_text:
+            st.success("✅ 润色完成！")
+            st.text_area("润色后的提示词：", st.session_state.polished_text, height=200)
