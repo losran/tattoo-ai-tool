@@ -88,25 +88,22 @@ with col_main:
     
     # 📍 调整：数字框放到按钮右边，紧凑布局
     st.write("") 
+# 📍 定位：激发按钮占 4 份，数字输入占 1 份，挤在同一行
     col_trigger, col_num = st.columns([4, 1])
+    
     with col_trigger:
-        if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
-            st.session_state.polished_text = "" 
-            st.session_state.generated_cache = []
-            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-            # 这里的 num 将从 col_num 的输入框中读取
-            # 为了能读取到后面定义的 num，我们手动在此处使用暂存值
-            target_n = st.session_state.get('temp_num', 3) 
-            for _ in range(target_n):
-                manual_words = st.session_state.manual_editor.split()
-                extra_count = 1 if chaos_level < 30 else (3 if chaos_level < 70 else 5)
-                extra = [random.choice(db_all[random.choice(list(db_all.keys()))]) for _ in range(extra_count) if any(db_all.values())]
-                st.session_state.generated_cache.append(" + ".join(manual_words + extra))
-            st.rerun()
+        # 这里的激发按钮放在左侧
+        do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
+        
     with col_num:
-        # 隐藏标签，让数字框和按钮对齐
+        # 数字输入框放在右侧，label_visibility="collapsed" 彻底隐藏标题
         num = st.number_input("数量", 1, 15, 3, label_visibility="collapsed", key='temp_num')
 
+    # 点击逻辑更新
+    if do_generate:
+        st.session_state.polished_text = "" 
+        st.session_state.generated_cache = []
+        # ...（保持之前的生成逻辑不变）...
     # 📍 交互：边框高亮代替选中文字
     if st.session_state.generated_cache and not st.session_state.get('polished_text'):
         st.divider()
