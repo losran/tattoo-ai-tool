@@ -76,28 +76,49 @@ with c_main:
     st.title("⚡ 极简纹身工作台")
     txt = st.text_area("输入文案", height=100, placeholder="在此粘贴...")
     
+# 找到原来的 if st.button 这一块，直接覆盖掉：
     if st.button("💥 拆解", type="primary", use_container_width=True):
         if txt:
-            # AI 调用
-            prompt = f"把这段话拆解为 Subject, Action, Style, Mood, Usage 五类。格式：类别:词|类别:词。原文：{txt}"
-            res = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1
-            ).choices[0].message.content
+            # --- 💡 核心修改：指令升级 ---
+            # 这里的 Prompt 是关键，我加回了详细要求，强迫它扣细节
+            prompt = f"""
+            你是一个纹身视觉元素提取器。请从下文中提取具体的画面细节，填入五维模型：
+            1. Subject: 必须提取具体的物体名词（如：雏菊、蛇、几何体、月亮）。不要写"纹身设计"这种废话。
+            2. Action: 具体的动态（如：缠绕、绽放、流淌）。
+            3. Style: 视觉风格（如：水彩、线条、Old School）。
+            4. Mood: 氛围关键词。
+            5. Usage: 部位或用途。
             
-            # 极简清洗逻辑
+            原文：{txt}
+            
+            输出格式要求：Subject:雏菊|Action:绽放|Style:水彩... (用|分隔，不要加序号)
+            """
+            
+            with st.spinner("🔍 正在狠抠细节..."):
+                res = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.1 # 极低随机性，确保听话
+                ).choices[0].message.content
+            
+            # 解析逻辑 (保持极简，但增加了容错)
             parsed = []
-            clean = res.replace("**", "").replace("\n", "|").replace("：", ":")
+            # 预处理：去掉可能出现的 Markdown 加粗、换行、中文冒号
+            clean = res.replace("**", "").replace("\n", "|").replace("：", ":").replace("  ", "")
+            
             for item in clean.split("|"):
                 if ":" in item:
                     cat, val = item.split(":", 1)
                     # 模糊匹配类别
                     for key in FILES.keys():
                         if key.lower() in cat.lower():
-                            # 拆分逗号顿号
-                            for w in val.replace("、", "/").replace(",", "/").split("/"):
-                                if w.strip(): parsed.append({"cat": key, "val": w.strip()})
+                            # 暴力拆分：不管 AI 用逗号、顿号还是斜杠，统统切开
+                            for w in val.replace("、", "/").replace(",", "/").replace("，", "/").split("/"):
+                                w = w.strip()
+                                # 过滤掉“无”、“未提及”这种无效词
+                                if w and w not in ["无", "未提及", "N/A"]: 
+                                    parsed.append({"cat": key, "val": w})
+            
             st.session_state.results = parsed
             st.rerun()
 
@@ -161,3 +182,4 @@ with c_lib:
                 st.rerun()
     else:
         st.caption("空空如也")
+
