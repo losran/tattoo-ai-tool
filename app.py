@@ -38,6 +38,33 @@ st.markdown("""
         color: #cfd8dc !important;
         font-weight: 500 !important;
     }
+    /* 1. 核心魔术：强行让 Checkbox 容器变成横向 Flex 布局 */
+    /* 我们瞄准碎片预览区的所有 Checkbox */
+    [data-testid="stVerticalBlock"] > div:has([data-testid="stCheckbox"]) {
+        display: flex !important;
+        flex-direction: row !important; /* 横向排列 */
+        flex-wrap: wrap !important;     /* 自动换行 */
+        gap: 8px !important;            /* 方块间距 */
+        align-items: center !important;
+    }
+
+    /* 2. 碎片方块美化：去掉多余的边距，锁定宽度随文字走 */
+    [data-testid="stCheckbox"] {
+        flex: 0 1 auto !important;      /* 禁止拉伸成面条 */
+        width: auto !important;
+        background: #1f2428 !important; 
+        border: 1px solid #444 !important;
+        border-radius: 6px !important;
+        padding: 2px 12px !important;
+        margin: 0 !important;
+    }
+
+    /* 3. 隐藏 Checkbox 内部那个丑陋的圆圈，让它看起来像个标签 */
+    [data-testid="stCheckbox"] [data-testid="stWidgetLabel"] p {
+        font-size: 14px !important;
+        margin: 0 !important;
+        white-space: nowrap !important; /* 强制文字不换行 */
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -251,6 +278,7 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
 
