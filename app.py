@@ -13,57 +13,19 @@ st.set_page_config(page_title="Tattoo Pro Station", layout="wide", initial_sideb
 # --- 定位：搜索 <style> 里的碎片样式部分 ---
 st.markdown("""
     <style>
-    /* 1. 强行让碎块在所属分类下横向排队，不要占满行 */
-    [data-testid="stVerticalBlock"] > div:has([data-testid="stCheckbox"]) {
-        display: flex !important; 
-        flex-direction: row !important; 
-        flex-wrap: wrap !important; 
-        gap: 8px !important; 
-        padding: 5px 0 !important;
-    }
-
-    /* 2. 碎片方块美化：像磁铁一样精致 */
-    [data-testid="stCheckbox"] {
-        flex: 0 1 auto !important; /* 宽度随内容走，不拉伸 */
-        background: #1f2428 !important; 
-        border: 1px solid #444 !important;
-        border-radius: 6px !important; 
-        padding: 2px 10px !important;
-        margin: 0 !important;
-    }
-
-    /* 3. 隐藏 checkbox 那个圆圈，让它更像一个标签 */
-    [data-testid="stCheckbox"] [data-testid="stWidgetLabel"] p {
-        font-size: 14px !important;
-        color: #cfd8dc !important;
-        font-weight: 500 !important;
-    }
-    /* 1. 核心魔术：强行让 Checkbox 容器变成横向 Flex 布局 */
-    /* 我们瞄准碎片预览区的所有 Checkbox */
+    /* 强制横向排队：让装方块的容器变成横向排列 */
     [data-testid="stVerticalBlock"] > div:has([data-testid="stCheckbox"]) {
         display: flex !important;
-        flex-direction: row !important; /* 横向排列 */
-        flex-wrap: wrap !important;     /* 自动换行 */
-        gap: 8px !important;            /* 方块间距 */
-        align-items: center !important;
+        flex-direction: row !important; 
+        flex-wrap: wrap !important; 
+        gap: 8px !important;
     }
 
-    /* 2. 碎片方块美化：去掉多余的边距，锁定宽度随文字走 */
+    /* 缩下方块：不准方块占满全行，文字多长方块就多宽 */
     [data-testid="stCheckbox"] {
-        flex: 0 1 auto !important;      /* 禁止拉伸成面条 */
+        flex: 0 1 auto !important;
         width: auto !important;
-        background: #1f2428 !important; 
-        border: 1px solid #444 !important;
-        border-radius: 6px !important;
-        padding: 2px 12px !important;
-        margin: 0 !important;
-    }
-
-    /* 3. 隐藏 Checkbox 内部那个丑陋的圆圈，让它看起来像个标签 */
-    [data-testid="stCheckbox"] [data-testid="stWidgetLabel"] p {
-        font-size: 14px !important;
-        margin: 0 !important;
-        white-space: nowrap !important; /* 强制文字不换行 */
+        min-width: fit-content !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -276,6 +238,7 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
 
