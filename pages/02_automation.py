@@ -165,54 +165,54 @@ default_text = st.session_state.get('auto_input_cache', "")
 user_input = st.text_area("检查待处理的提示词内容：", value=default_text, height=300)
 
 if st.button("🚀 生成全能适配脚本 (生成即复制)", type="primary", use_container_width=True):
-            # 1. 智能拆分逻辑 (保持原样)
-            if "###" in user_input_auto:
-                task_list = [t.strip() for t in user_input_auto.split("###") if len(t.strip()) > 2]
-            else:
-                blocks = re.split(r'\*\*方案.*?\*\*', user_input_auto)
-                task_list = [b.strip().replace('* ', '').replace('\n', ' ') for b in blocks if len(b.strip()) > 5]
+    # 1. 智能拆分逻辑 (使用 user_input)
+    if "###" in user_input:
+        task_list = [t.strip() for t in user_input.split("###") if len(t.strip()) > 2]
+    else:
+        blocks = re.split(r'\*\*方案.*?\*\*', user_input)
+        task_list = [b.strip().replace('* ', '').replace('\n', ' ') for b in blocks if len(b.strip()) > 5]
 
-            if task_list:
-                # 2. 生成 JS 脚本内容
-                js_lines = ["const tasks = ["]
-                for t in task_list:
-                    clean_text = t.replace('\n', ' ').replace('"', '\\"').replace("'", "\\'")
-                    js_lines.append(f'    "{clean_text}",')
-                
-                js_lines.extend([
-                    "];",
-                    "tasks.forEach((task, i) => {",
-                    "    console.log(`Sending Task ${i+1}:`, task);",
-                    "});",
-                    "alert('脚本任务已就绪');"
-                ])
-                js_code = "\n".join(js_lines)
-                
-                # --- 🔴 核心修改：生成的同时，静默执行复制命令 🔴 ---
-                import json
-                import streamlit.components.v1 as components
-                
-                # 把代码转义成 JSON 字符串，防止 JS 语法错误
-                js_val = json.dumps(js_code)
-                
-                # 插入一段高度为 0 的隐形 JS，负责干活
-                components.html(f"""
-                <script>
-                    // 尝试写入剪贴板
-                    navigator.clipboard.writeText({js_val}).then(function() {{
-                        console.log('自动复制成功！');
-                    }}, function(err) {{
-                        console.error('自动复制失败，可能是浏览器拦截: ', err);
-                    }});
-                </script>
-                """, height=0)
-                # ---------------------------------------------------
+    if task_list:
+        # 2. 生成 JS 脚本内容
+        js_lines = ["const tasks = ["]
+        for t in task_list:
+            clean_text = t.replace('\n', ' ').replace('"', '\\"').replace("'", "\\'")
+            js_lines.append(f'    "{clean_text}",')
+        
+        js_lines.extend([
+            "];",
+            "tasks.forEach((task, i) => {",
+            "    console.log(`Sending Task ${i+1}:`, task);",
+            "});",
+            "alert('脚本任务已就绪');"
+        ])
+        js_code = "\n".join(js_lines)
+        
+        # --- 🔴 核心修改：生成的同时，静默执行复制命令 🔴 ---
+        import json
+        import streamlit.components.v1 as components
+        
+        # 把代码转义成 JSON 字符串，防止 JS 语法错误
+        js_val = json.dumps(js_code)
+        
+        # 插入一段高度为 0 的隐形 JS，负责干活
+        components.html(f"""
+        <script>
+            // 尝试写入剪贴板
+            navigator.clipboard.writeText({js_val}).then(function() {{
+                console.log('自动复制成功！');
+            }}, function(err) {{
+                console.error('自动复制失败，可能是浏览器拦截: ', err);
+            }});
+        </script>
+        """, height=0)
+        # ---------------------------------------------------
 
-                # 3. 界面反馈
-                st.toast(f"✅ 已生成 {len(task_list)} 条任务，并已自动写入剪贴板！")
-                st.success("脚本已复制！直接去浏览器 F12 粘贴即可。")
-                
-                # 4. 保底展示 (万一浏览器拦截了自动复制，还能手动拷)
-                st.code(js_code, language="javascript")
-            else:
-                st.error("❌ 未识别到任务，请检查是否包含 ###")
+        # 3. 界面反馈
+        st.toast(f"✅ 已生成 {len(task_list)} 条任务，并已自动写入剪贴板！")
+        st.success("脚本已复制！直接去浏览器 F12 粘贴即可。")
+        
+        # 4. 保底展示
+        st.code(js_code, language="javascript")
+    else:
+        st.error("❌ 未识别到任务，请检查是否包含 ###")
