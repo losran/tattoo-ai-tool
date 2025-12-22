@@ -2,18 +2,18 @@ import streamlit as st
 import json
 import urllib.parse
 
-# --- 1. 配置 ---
-st.set_page_config(layout="wide", page_title="Auto Task")
+# --- 1. 页面配置 ---
+st.set_page_config(layout="wide", page_title="Auto Task Central")
 
-# --- 2. 核心：MagicPrompt v15.0 JS 模板 (你的原版逻辑) ---
-def generate_magic_script(prompt_list):
-    # 将提示词列表转为 JSON 并进行 URL 编码，防止特殊字符搞崩溃脚本
-    encoded_data = urllib.parse.quote(json.dumps(prompt_list))
+# --- 2. 核心：JS 脚本生成器 (基于你的 MagicPrompt v15.0) ---
+def generate_js_code(prompts):
+    # 将列表转为 JSON 并进行编码，确保特殊字符不会破坏 JS 语法
+    encoded_prompts = urllib.parse.quote(json.dumps(prompts))
     
-    # 这里嵌入你提供的顶级 JS 自动化逻辑
+    # 这里是你那段“全平台制霸”的 JS 逻辑
     js_template = f"""(async function() {{
     window.kill = false;
-    const tasks = JSON.parse(decodeURIComponent("{encoded_data}"));
+    const tasks = JSON.parse(decodeURIComponent("{encoded_prompts}"));
     
     function showStatus(text, color = "#6366f1") {{
         let el = document.getElementById('magic-status-bar');
@@ -47,10 +47,10 @@ def generate_magic_script(prompt_list):
         }});
     }}
 
-    showStatus("🚀 纹身自动化开始...");
+    showStatus("🚀 自动化流程启动...");
     for (let i = 0; i < tasks.length; i++) {{
         if (window.kill) break;
-        showStatus("✍️ 正在下单: " + (i+1) + "/" + tasks.length);
+        showStatus("✍️ 正在执行任务: " + (i+1) + " / " + tasks.length);
         let box = getInputBox();
         if (!box) {{ showStatus("❌ 找不到输入框", "#ef4444"); break; }}
         box.focus();
@@ -60,62 +60,66 @@ def generate_magic_script(prompt_list):
         let sendBtn = getSendBtn();
         if (sendBtn) sendBtn.click();
         
-        // 智能等待逻辑
         if (i < tasks.length - 1) {{
             await new Promise(r => setTimeout(r, 3000));
             let waitTime = 0;
             while(isGenerating() && !window.kill) {{
-                showStatus("🎨 AI 正在作画 (" + waitTime + "s)...", "#8b5cf6");
+                showStatus("🎨 AI 作画中 (" + waitTime + "s)...", "#8b5cf6");
                 await new Promise(r => setTimeout(r, 1000));
                 waitTime++;
-                if (waitTime > 180) break;
+                if (waitTime > 240) break;
             }}
-            showStatus("⏳ 冷却中...", "#f59e0b");
+            showStatus("⏳ 冷却中 (5s)...", "#f59e0b");
             await new Promise(r => setTimeout(r, 5000));
         }}
     }}
-    showStatus("🎉 全部画完啦！", "#10b981");
+    showStatus("🎉 任务全部完成！", "#10b981");
 }})();"""
     return js_template
 
-# --- 3. UI 界面 ---
-st.title("🤖 自动化任务分发中控")
+# --- 3. UI 布局 ---
+st.title("🤖 自动化任务中控")
 
-# 检查上一模块传来的数据
-# 这里我们要用到 session_state.polished_text (你在模块2保存的润色提示词)
-raw_prompts = st.session_state.get('polished_text', "")
+# 检查是否有来自第二模块的润色成果
+from_creative = st.session_state.get('polished_text', "")
 
-if not raw_prompts:
-    st.warning("⚠️ 还没选好方案呢！请先去 [Creative] 页面勾选方案并点击【艺术润色】。")
-else:
-    # 自动切分方案
-    # 假设 DeepSeek 输出的格式是 "方案1：... 方案2：..."
-    # 我们按行切分出真正的提示词内容
-    task_list = [line.split('：')[-1].strip() for line in raw_prompts.split('\n') if '：' in line or ':' in line]
-    
-    if not task_list: # 容错处理
-        task_list = [line.strip() for line in raw_prompts.split('\n') if line.strip()]
+# 顶部分块选择
+tab1, tab2 = st.tabs(["⚡ 快捷导入 (从创意引擎)", "✍️ 手动粘贴 (外部搬运)"])
 
-    st.success(f"已就绪！共检测到 {len(task_list)} 条跑图任务。")
+with tab1:
+    if from_creative:
+        st.success("✅ 检测到已生成的润色方案！")
+        st.text_area("内容预览：", from_creative, height=150, disabled=True)
+        if st.button("🚀 导入并生成自动化脚本", type="primary", key="import_btn"):
+            # 解析提示词：按行切分并清洗
+            lines = [l.strip() for l in from_creative.split('\n') if l.strip()]
+            # 过滤掉“方案1：”这种前缀，只留内容
+            clean_prompts = [l.split('：')[-1].split(':')[-1] for l in lines]
+            st.session_state.final_task_list = clean_prompts
+    else:
+        st.info("目前没有润色好的方案，请先去 [Creative] 页面完成润色。")
 
-    with st.expander("📝 预览待下发指令", expanded=True):
-        for i, task in enumerate(task_list):
-            st.code(f"任务 {i+1}: {task}")
+with tab2:
+    manual_input = st.text_area("请粘贴提示词（每行一条）：", height=200, placeholder="提示词1\n提示词2\n...")
+    if st.button("🛠️ 生成手动任务脚本"):
+        lines = [l.strip() for l in manual_input.split('\n') if l.strip()]
+        st.session_state.final_task_list = lines
 
-    # 生成脚本
-    magic_code = generate_magic_script(task_list)
-
+# --- 4. 脚本分发区 ---
+if 'final_task_list' in st.session_state and st.session_state.final_task_list:
     st.divider()
-    st.subheader("🚀 复制全能脚本 (F12)")
+    st.subheader(f"📦 待处理任务 ({len(st.session_state.final_task_list)} 条)")
     
-    # 重点：提供一键复制
-    st.text_area("点击下方按钮复制此脚本，去目标网站控制台粘贴：", magic_code, height=300)
+    with st.expander("查看任务明细"):
+        for i, p in enumerate(st.session_state.final_task_list):
+            st.write(f"{i+1}. {p}")
+            
+    # 生成最终 JS
+    final_js = generate_js_code(st.session_state.final_task_list)
     
-    st.info("""
-    **使用说明：**
-    1. 点击上方代码框全选并复制。
-    2. 打开你想跑图的 AI 网站（Gemini / ChatGPT / 豆包等）。
-    3. 按 **F12** 进入开发者工具，点击 **Console (控制台)**。
-    4. 粘贴代码，按回车 **Enter**。
-    5. 脚本会自动开始循环跑图，你只需要喝咖啡等着。
-    """)
+    st.info("👇 点击下方按钮复制代码，然后在跑图网站(ChatGPT/豆包)按 F12 粘贴回车")
+    st.code(final_js, language="javascript")
+    
+    if st.button("🗑️ 清空当前任务流"):
+        st.session_state.final_task_list = []
+        st.rerun()
