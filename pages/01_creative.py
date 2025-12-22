@@ -188,63 +188,61 @@ with col_main:
     do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
 
     if do_generate:
-        # 1. 清空旧数据 (防止叠加)
-        st.session_state.polished_text = "" 
-        st.session_state.generated_cache = []
-        
-        # 2. 获取最新数据
-        # 确保你的 WAREHOUSE 和 get_github_data 函数在这里是可用的
-        db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-        
-        if not any(db_all.values()):
-            st.error("⚠️ 仓库为空，请检查 GitHub 连接或配置！")
-        else:
-            import random
+            # 1. 清空旧数据
+            st.session_state.polished_text = "" 
+            st.session_state.generated_cache = []
             
-            # 🔴🔴🔴 核心配置：定义你的主体分类 Key 🔴🔴🔴
-            # 请务必去 WAREHOUSE 字典里确认一下，你的主体分类叫 'subject' 还是 'elements'？
-            # 如果是 'elements'，请把下面这行改成 MAIN_KEY = 'elements'
-            MAIN_KEY = 'subject' 
+            # 2. 获取最新数据
+            # 确保 WAREHOUSE 的 key 和你 GitHub json 里的 key 是一样的！
+            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
             
-            # 这里的 num 是你在滑块那里定义的变量名，如果报错说 num 未定义，请改成 mix_num
-            target_count = num 
+            if not any(db_all.values()):
+                st.error("⚠️ 仓库为空，无法组装！")
+            else:
+                import random
+                
+                # 🔴🔴🔴 核心修复：定义你的“套餐公式” 🔴🔴🔴
+                # 这里列出你所有的分类 Key，顺序就是生成的顺序。
+                # 比如：先主体，再风格，再构图，再质感...
+                # 请务必确保这里的单词，和你 WAREHOUSE 里的 Key 一模一样！
+                FORMULA_ORDER = [
+                    'subject',      # 1. 主体 (比如：兔子)
+                    'style',        # 2. 风格 (比如：Ignorant)
+                    'composition',  # 3. 构图 (比如：4x4cm)
+                    'texture',      # 4. 质感 (比如：点刺)
+                    'color'         # 5. 颜色 (比如：淡粉)
+                ]
+                
+                # 如果你的 key 不叫这些名字，请手动改一下上面的列表 ^^^
+                # 比如你的 key 叫 'elements' 不叫 'subject'，就改成 'elements'
 
-            for _ in range(target_count):
-                # A. 处理手写输入
-                raw_input = st.session_state.get('manual_editor', "")
-                final_tags = raw_input.split() if isinstance(raw_input, str) and raw_input.strip() else []
+                for _ in range(num):
+                    # A. 处理手写输入
+                    raw_input = st.session_state.get('manual_editor', "")
+                    final_tags = raw_input.split() if isinstance(raw_input, str) and raw_input.strip() else []
+                    
+                    # B. 按照公式，挨个分类抽一个！
+                    for category in FORMULA_ORDER:
+                        # 只有当这个分类在数据库里存在，且里面有词的时候，才抽
+                        if category in db_all and db_all[category]:
+                            
+                            # --- 🟢 混乱度彩蛋 (可选) ---
+                            # 如果混乱度极低(<20)，可能只保留前3个核心分类(主体+风格+构图)，跳过后面的修饰
+                            if chaos_level < 20 and category in ['texture', 'color']:
+                                continue # 跳过
+                                
+                            # 正常抽取
+                            word = random.choice(db_all[category])
+                            final_tags.append(word)
+                    
+                    # C. 组合结果
+                    # 过滤空值并拼接
+                    unique_tags = list(dict.fromkeys(filter(None, final_tags)))
+                    combined_p = " + ".join(unique_tags)
+                    
+                    st.session_state.generated_cache.append(combined_p)
                 
-                # B. 计算随机配额 (根据混乱度 chaos_level)
-                # 确保 chaos_level 变量在上下文里是可用的
-                total_random = 2 if chaos_level < 30 else (4 if chaos_level < 70 else 6)
-                
-                # C. 👑 强制抽取主体 (C位出道)
-                # 只要仓库里有主体数据，就先抽一个放进去！
-                if MAIN_KEY in db_all and db_all[MAIN_KEY]:
-                    subject_word = random.choice(db_all[MAIN_KEY])
-                    final_tags.append(subject_word)
-                    # 既然已经抽了一个主体，剩下的随机名额就减 1
-                    total_random -= 1
-                
-                # D. 抽取配菜 (风格/构图/颜色/质感...)
-                # 排除掉刚才已经抽过的主体分类，只从剩下的分类里抽
-                other_cats = [k for k, v in db_all.items() if k != MAIN_KEY and v]
-                
-                if other_cats and total_random > 0:
-                    for _ in range(total_random):
-                        rand_cat = random.choice(other_cats)
-                        if db_all[rand_cat]: # 确保分类里有词
-                            rand_word = random.choice(db_all[rand_cat])
-                            final_tags.append(rand_word)
-                
-                # E. 组合结果并去重
-                unique_tags = list(dict.fromkeys(filter(None, final_tags)))
-                combined_p = " + ".join(unique_tags)
-                
-                st.session_state.generated_cache.append(combined_p)
-            
-            # 3. 强制刷新页面显示结果
-            st.rerun()
+                st.rerun()
 
     # 📍 方案筛选区 (注入高亮 CSS)
     if st.session_state.generated_cache and not st.session_state.get('polished_text'):
