@@ -9,33 +9,35 @@ REPO = "losran/tattoo-ai-tool"
 
 st.set_page_config(page_title="Tattoo Pro Station", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. 核心 CSS 布局 (强制紧凑版) ---
+
+# --- 定位：搜索 <style> 里的碎片样式部分 ---
 st.markdown("""
     <style>
-    /* 1. 锁死网页不准滚动，高度占满屏幕 */
-    html, body, [data-testid="stAppViewContainer"] {
-        overflow: hidden !important; height: 100vh !important;
-    }
-    header, [data-testid="stHeader"] { visibility: hidden; }
-    .block-container { padding: 0 !important; max-width: 100% !important; height: 100vh !important; }
-
-    /* 2. 三栏物理宽度锁死 */
-    [data-testid="stColumn"]:nth-child(1) { flex: 0 0 100px !important; background: #111; border-right: 1px solid #333; }
-    [data-testid="stColumn"]:nth-child(2) { flex: 1 1 auto !important; background: #0d0d0d; padding: 20px 40px !important; overflow-y: auto !important; }
-    [data-testid="stColumn"]:nth-child(3) { flex: 0 0 320px !important; background: #0a0a0a; border-left: 1px solid #333; padding: 20px !important; }
-
-    /* 3. 💥 碎片横向“大爆炸”布局 (核心点) */
-    /* 强行让 Streamlit 的列容器变成 Flex 容器，让碎片横着排 */
+    /* 1. 强行让碎块在所属分类下横向排队，不要占满行 */
     [data-testid="stVerticalBlock"] > div:has([data-testid="stCheckbox"]) {
-        display: flex !important; flex-wrap: wrap !important; gap: 6px !important; flex-direction: row !important;
+        display: flex !important; 
+        flex-direction: row !important; 
+        flex-wrap: wrap !important; 
+        gap: 8px !important; 
+        padding: 5px 0 !important;
     }
-    
-    /* 4. 碎块卡片样式：扁平化，不占用垂直空间 */
+
+    /* 2. 碎片方块美化：像磁铁一样精致 */
     [data-testid="stCheckbox"] {
-        flex: 0 1 auto !important; background: #1f2428 !important; border: 1px solid #444 !important;
-        border-radius: 4px !important; padding: 2px 10px !important; min-width: fit-content !important;
+        flex: 0 1 auto !important; /* 宽度随内容走，不拉伸 */
+        background: #1f2428 !important; 
+        border: 1px solid #444 !important;
+        border-radius: 6px !important; 
+        padding: 2px 10px !important;
+        margin: 0 !important;
     }
-    [data-testid="stCheckbox"] p { font-size: 13px !important; white-space: nowrap !important; }
+
+    /* 3. 隐藏 checkbox 那个圆圈，让它更像一个标签 */
+    [data-testid="stCheckbox"] [data-testid="stWidgetLabel"] p {
+        font-size: 14px !important;
+        color: #cfd8dc !important;
+        font-weight: 500 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -247,6 +249,7 @@ with col_lib:
                 st.rerun()
     else:
         st.info("💡 该分类下暂无素材，快去中间拆解一些吧！")
+
 
 
 
