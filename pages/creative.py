@@ -50,26 +50,40 @@ with c_main:
     num_gen = st.slider("一次生成几条创意？", 1, 10, 3)
     
     if st.button("🔥 一键生成创意提示词", type="primary", use_container_width=True):
-        st.subheader("💡 生成结果")
-        
-        # 模拟瀑布流展示
-        cols = st.columns(2) 
-        for i in range(num_gen):
-            # 核心抽样逻辑：从 5 个分类里各摇一个
-            sample = []
-            for cat, fname in FILES.items():
-                all_words = get_data(fname)
-                if all_words:
-                    sample.append(random.choice(all_words))
+            st.subheader("💡 灵感方案库")
             
-            # 渲染结果卡片
-            with cols[i % 2]:
-                with st.container(border=True):
-                    final_prompt = " + ".join(sample)
-                    st.markdown(f"**方案 {i+1}**")
-                    st.code(final_prompt, wrap_lines=True)
-                    if st.button(f"选中方案 {i+1}", key=f"sel_{i}"):
-                        st.success("已加入待发单列表")
+            # 预先拉取所有维度的词库，减少 API 调用次数
+            db_all = {}
+            with st.spinner("正在从云端调取灵感素材..."):
+                for cat, fname in FILES.items():
+                    db_all[cat] = get_data(fname)
+    
+            # 模拟瀑布流展示
+            cols = st.columns(2) 
+            for i in range(num_gen):
+                # 核心抽样：从 5 个分类里各摇一个词
+                sample_tags = []
+                for cat in ["Subject", "Action", "Style", "Mood", "Usage"]:
+                    pool = db_all.get(cat, [])
+                    if pool:
+                        sample_tags.append(random.choice(pool))
+                    else:
+                        sample_tags.append(f"[{cat}]") # 如果某分类没词，用占位符兜底
+    
+                # 渲染方案卡片
+                with cols[i % 2]:
+                    with st.container(border=True):
+                        # 拼装成提示词
+                        final_prompt = " + ".join(sample_tags)
+                        st.markdown(f"**方案 {i+1}**")
+                        st.info(final_prompt) # 用蓝色框显得更醒目
+                        
+                        # 复制按钮 (Streamlit 原生暂不支持直接写剪贴板，先用 code 块方便手动复制)
+                        st.code(final_prompt, language="text")
+                        
+                        if st.button(f"选中并导出方案 {i+1}", key=f"sel_{i}"):
+                            st.balloons() # 庆祝一下
+                            st.success("已标记为首选方案！")
 
 # 👉 左栏：占位
 with c_left:
