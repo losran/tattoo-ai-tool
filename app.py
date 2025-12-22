@@ -86,6 +86,23 @@ with col_mid:
     raw = st.text_area("粘贴样板描述", height=150, key=f"in_{st.session_state.input_id}")
     
     if st.button("🔍 立即拆解", type="primary", use_container_width=True):
+        if st.session_state.pre_tags:
+        st.write("---")
+        st.subheader("📋 碎片预览 (五维拆解)")
+        
+        save_list = []
+        # 按你指定的顺序循环展示
+        order = ["🦴 Subject", "⚡ Action", "🎨 Style", "🔮 Mood", "📌 Usage"]
+        
+        for display_cat in order:
+            words = [t for t in st.session_state.pre_tags if t['cat'] == display_cat]
+            if words:
+                st.markdown(f"**{display_cat}**")
+                cols = st.columns(3)
+                for i, w in enumerate(words):
+                    with cols[i % 3]:
+                        if st.checkbox(w['val'], value=True, key=f"boom_{display_cat}_{i}_{st.session_state.input_id}"):
+                            save_list.append(w)
         if raw:
             with st.spinner("碎裂中..."):
                 res = client.chat.completions.create(
@@ -104,55 +121,64 @@ with col_mid:
                 st.session_state.input_id += 1 
                 st.rerun()
 
-# 2. 立即拆解按钮 (增强容错版)
+# 2. 立即拆解按钮 (五维大爆炸版)
     if st.button("🔍 立即炸开碎片", type="primary", use_container_width=True):
         if raw:
-            with st.spinner("💥 正在执行大爆炸拆解..."):
+            with st.spinner("💥 正在执行五维深度拆解..."):
                 res = client.chat.completions.create(
                     model="deepseek-chat",
                     messages=[
-                        {"role": "system", "content": "分类:词|分类:词。分类限:主体,风格,部位,氛围。词要极细。"},
+                        {"role": "system", "content": """你是一个专业的纹身提示词拆解专家。
+                        请将文案打碎并归类到以下五个维度：
+                        1. Subject (核心主体/名词)
+                        2. Action (动作/姿态/具体状态)
+                        3. Style (视觉风格/技法)
+                        4. Mood (情绪/氛围感)
+                        5. Usage (使用场景/部位建议)
+                        输出格式：类别:词|类别:词。禁止废话，禁止星号。词要拆得极细。"""},
                         {"role": "user", "content": raw}
                     ],
                     temperature=0.1
                 ).choices[0].message.content
                 
                 parsed = []
-                # --- [升级版解析 Test] ---
-                # 先把 AI 喜欢乱加的星号 ** 去掉，统一中英文冒号
+                # --- [TEST: 五维解析清洗] ---
                 clean_text = res.replace("**", "").replace("：", ":").replace("\n", "|")
+                parts = [p for p in clean_text.split("|") if ":" in p]
                 
-                # 按行或竖线切割
-                potential_parts = clean_text.split("|")
-                for part in potential_parts:
-                    if ":" in part:
-                        k, v = part.split(":", 1)
-                        # 模糊匹配分类名（只要包含“主体”两个字就算）
-                        found_cat = None
-                        for target in ["主体", "风格", "部位", "氛围"]:
-                            if target in k:
-                                found_cat = target
-                                break
-                        
-                        if found_cat and v.strip():
-                            # 再次打碎：处理词条里的逗号、顿号、括号内容
-                            # 我们把括号里的解释也当成独立的碎片炸开
-                            sub_content = v.replace("（", "/").replace("）", "/").replace("、", "/").replace(",", "/").replace(" ", "/")
-                            sub_words = [sw.strip() for sw in sub_content.split("/") if sw.strip()]
-                            
-                            for sw in sub_words:
-                                parsed.append({"cat": found_cat, "val": sw})
+                # 定义标准分类映射
+                cat_map = {
+                    "Subject": "🦴 Subject",
+                    "Action": "⚡ Action",
+                    "Style": "🎨 Style",
+                    "Mood": "🔮 Mood",
+                    "Usage": "📌 Usage"
+                }
+
+                for p in parts:
+                    k, v = p.split(":", 1)
+                    # 匹配分类（支持中英文匹配）
+                    found_cat = None
+                    for eng, show in cat_map.items():
+                        if eng.lower() in k.lower() or show in k:
+                            found_cat = show
+                            break
+                    
+                    if found_cat:
+                        # 强力打碎：处理括号、顿号、逗号
+                        sub_content = v.replace("（", "/").replace("）", "/").replace("、", "/").replace(",", "/").replace(" ", "/")
+                        sub_words = [sw.strip() for sw in sub_content.split("/") if sw.strip()]
+                        for sw in sub_words:
+                            parsed.append({"cat": found_cat, "val": sw})
                 
-                # --- [功能有效性检查] ---
                 if parsed:
                     st.session_state.pre_tags = parsed
                     st.session_state.input_id += 1
                     st.rerun()
                 else:
-                    st.error("❌ 功能异常：清洗逻辑未能识别内容")
-                    with st.expander("🛠️ 查看诊断数据 (Debug Test)"):
-                        st.write("AI 原始回复：", res)
-                        st.write("清洗尝试：", clean_text)
+                    st.error("❌ 诊断：五维解析未命中")
+                    with st.expander("🛠️ Debug Test"):
+                        st.write("AI原始回复：", res)
 # 👉 右：仓库管理
 with col_lib:
     st.subheader("📚 仓库整理")
@@ -172,6 +198,7 @@ with col_lib:
                 sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[cat], st.session_state.db[cat])
                 st.rerun()
     else: st.caption("空空如也")
+
 
 
 
