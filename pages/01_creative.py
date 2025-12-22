@@ -16,86 +16,52 @@ WAREHOUSE = {
 GALLERY_FILE = "gallery/inspirations.txt"
 
 # --- 2. 工具函数 (适配多路径) ---
-def get_github_data(path):
-    url = f"https://api.github.com/repos/{REPO}/contents/{path}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    resp = requests.get(url, headers=headers)
-    if resp.status_code == 200:
-        return [line.strip() for line in base64.b64decode(resp.json()['content']).decode().splitlines() if line.strip()]
-    return []
-
-def save_to_github(path, data_list):
-    url = f"https://api.github.com/repos/{REPO}/contents/{path}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    get_resp = requests.get(url, headers=headers).json()
-    content_str = "\n".join(list(set(data_list)))
-    b64_content = base64.b64encode(content_str.encode()).decode()
-    requests.put(url, headers=headers, json={"message": "update", "content": b64_content, "sha": get_resp.get('sha')})
-
 def get_image_desc(image_bytes):
     """
-    更换为更轻量、响应更快的模型，并增加详细诊断信息
+    终极稳健版：调用官方最核心模型，带自动重试和错误透传
     """
-    # 这个模型专门做图片描述，非常稳定
-    API_URL = "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning"
-    
-    if not HF_TOKEN:
-        st.error("❌ 没找到 HF_TOKEN，请检查 Secrets 设置")
-        return None
-
+    # 换成官方最基础、最稳的 base 模型
+    API_URL = "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-base"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
     try:
-        # 增加提示，让用户知道后台在动
+        # 加上 wait_for_model=True，强迫服务器等模型加载完
+        payload = {"inputs": base64.b64encode(image_bytes).decode("utf-8"), "options": {"wait_for_model": True}}
+        # 注意：这里直接传图片字节流最稳
         response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=40)
         
         if response.status_code == 200:
-            res_json = response.json()
-            # 兼容不同模型的返回格式
-            if isinstance(res_json, list) and len(res_json) > 0:
-                return res_json[0].get('generated_text')
-            elif isinstance(res_json, dict):
-                return res_json.get('generated_text')
+            res = response.json()
+            if isinstance(res, list) and len(res) > 0:
+                return res[0].get('generated_text')
             return None
-            
         elif response.status_code == 503:
-            st.warning("⏳ AI 正在排队起床（加载中），请再等 10 秒后点一下...")
-            return "LOADING" # 特殊标识，表示模型在加载
-            
+            st.warning("⏳ AI 正在排队加载模型，请等 15 秒后再点一次...")
+            return "RETRY"
         else:
-            # 即使报错，也要把原因写在屏幕上，方便我们排查
-            st.error(f"抱脸接口报错: {response.status_code} - {response.text[:50]}")
+            # 把具体的报错信息打出来，我们好分析
+            st.error(f"抱脸接口报错 ({response.status_code})。请确认 Secrets 里的 HF_TOKEN 是否正确。")
             return None
     except Exception as e:
-        st.error(f"网络连接超时: {str(e)}")
+        st.error(f"网络异常: {str(e)}")
         return None
 
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    
-    try:
-        # 增加提示，让用户知道后台在动
-        response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=40)
-        
-        if response.status_code == 200:
-            res_json = response.json()
-            # 兼容不同模型的返回格式
-            if isinstance(res_json, list) and len(res_json) > 0:
-                return res_json[0].get('generated_text')
-            elif isinstance(res_json, dict):
-                return res_json.get('generated_text')
-            return None
-            
-        elif response.status_code == 503:
-            st.warning("⏳ AI 正在排队起床（加载中），请再等 10 秒后点一下...")
-            return "LOADING" # 特殊标识，表示模型在加载
-            
+# --- 按钮处的逻辑也要微调 ---
+if st.button("🔍 开始反推标签", type="secondary", use_container_width=True):
+    with st.spinner("AI 正在解析图片特征..."):
+        desc = get_image_desc(up_file.getvalue())
+        if desc == "RETRY":
+            pass # 页面已经有 warning 了
+        elif desc:
+            # 让 DeepSeek 介入拆解
+            res = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": f"你是一个纹身设计师。请把这段英文描述拆解为 Subject:词|Action:词|Style:词|Mood:词|Usage:词。必须是中文。描述：{desc}"}]
+            ).choices[0].message.content
+            st.session_state.img_tags = res
+            st.success(f"✅ 提取成功：{res}")
         else:
-            # 即使报错，也要把原因写在屏幕上，方便我们排查
-            st.error(f"抱脸接口报错: {response.status_code} - {response.text[:50]}")
-            return None
-    except Exception as e:
-        st.error(f"网络连接超时: {str(e)}")
-        return None
+            st.error("无法识别图片，请换一张图试试或检查网络。")
 
 # --- 3. UI 布局 ---
 st.set_page_config(layout="wide", page_title="Creative Engine")
