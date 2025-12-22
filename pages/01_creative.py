@@ -224,36 +224,7 @@ with col_main:
                 
                 st.rerun()
 
-    # --- 👇 下面这部分是你缺失的：把缓存里的词渲染成可交互按钮 ---
-    # (这段代码要紧接着上面的 with col_trigger 块，注意缩进要和 with col_trigger 同级)
-    
-    if "generated_cache" in st.session_state and st.session_state.generated_cache:
-        st.divider()
-        st.caption("👇 点击标签以【选中/取消】（红色 = 已选中）：")
-        
-        # 初始化选中列表，防止报错
-        if "selected_prompts" not in st.session_state: 
-            st.session_state.selected_prompts = []
-            
-        with st.container(height=300):
-            cols = st.columns(2)
-            for i, item in enumerate(st.session_state.generated_cache):
-                # 1. 判断这个词是不是已经被你选了
-                is_selected = item in st.session_state.selected_prompts
-                
-                # 2. 变色核心逻辑：选中=primary(红)，没选=secondary(灰)
-                btn_kind = "primary" if is_selected else "secondary"
-                btn_label = f"✅ {item}" if is_selected else f"⬜ {item}"
-                
-                # 3. 渲染按钮
-                with cols[i % 2]:
-                    # key 必须唯一，防止 Streamlit 报错
-                    if st.button(btn_label, key=f"cache_btn_{i}", use_container_width=True, type=btn_kind):
-                        if is_selected:
-                            st.session_state.selected_prompts.remove(item) # 取消选中
-                        else:
-                            st.session_state.selected_prompts.append(item) # 加入选中
-                        st.rerun()
+
 
     # 📍 方案筛选区 (注入高亮 CSS)
     if st.session_state.generated_cache and not st.session_state.get('polished_text'):
