@@ -129,15 +129,14 @@ with col_mid:
                         temperature=0.1 # 极低随机性，确保输出稳定
                     ).choices[0].message.content
                     
-                    # --- [TEST: 解析与清洗逻辑] ---
+                    # --- [优化版：清洗逻辑] ---
                     parsed_results = []
-                    # 剥除加粗、统一符号、处理换行
-                    clean_res = res.replace("**", "").replace("：", ":").replace("\n", "|")
+                    # 增强：同时处理中文冒号、英文冒号、星号、换行符
+                    clean_res = res.replace("**", "").replace("：", ":").replace("\n", "|").replace(" ", "")
                     
                     for part in clean_res.split("|"):
                         if ":" in part:
                             k, v = part.split(":", 1)
-                            # 模糊匹配五大分类名
                             found_cat = None
                             for target in ["Subject", "Action", "Style", "Mood", "Usage"]:
                                 if target.lower() in k.lower():
@@ -145,8 +144,8 @@ with col_mid:
                                     break
                             
                             if found_cat:
-                                # 极细粒度打碎：处理逗号、顿号、空格、斜杠
-                                sub_words = v.replace("、", "/").replace(",", "/").replace(" ", "/").replace("，", "/").split("/")
+                                # 增强：同时炸开括号内容、逗号、顿号
+                                sub_words = v.replace("（", "/").replace("）", "/").replace("、", "/").replace(",", "/").replace("，", "/").split("/")
                                 for sw in sub_words:
                                     if sw.strip():
                                         parsed_results.append({"cat": found_cat, "val": sw.strip()})
