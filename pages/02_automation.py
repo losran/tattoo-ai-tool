@@ -9,7 +9,7 @@ import re
 st.set_page_config(layout="wide", page_title="Automation Central")
 apply_pro_style()
 
-# 2. 样式注入 (保持你的暗黑风格)
+# 2. 样式注入
 st.markdown("""
 <style>
     .stApp { background-color: #0e1117; }
@@ -50,150 +50,160 @@ with col_opt1:
         help="不同平台输入框构造不同，手动选择更精准"
     )
 
-# 5. 输入区域 (核心修复：变量名统一)
-# 尝试从 session_state 获取之前生成的文案
+# 5. 输入区域
 default_text = st.session_state.get('auto_input_cache', "")
 if not default_text:
-    # 兼容部分代码可能用的 polished_text
     default_text = st.session_state.get('polished_text', "")
 
 user_input = st.text_area("检查待处理的提示词内容：", value=default_text, height=300, key="main_input_area")
 
-# 6. 生成按钮逻辑 (v15.0 防卡死 + 暴力展示代码框)
-if st.button("🚀 生成全能适配脚本 (v15.0 防卡死版)", type="primary", use_container_width=True):
-    # --- A. 智能拆分任务 ---
-    task_list = []
-    if user_input:
-        if "###" in user_input:
-            task_list = [t.strip() for t in user_input.split("###") if len(t.strip()) > 2]
+# --- 🟢 新增功能区：生产辅助选项 ---
+st.divider()
+col_check, col_btn = st.columns([1, 2])
+with col_check:
+    # ✨ 这里是新加的开关 ✨
+    need_white_bg = st.checkbox("🏭 生产模式：每张图后自动生成白底图", value=False, help="勾选后，会在每个方案后面自动插入一条'生成上图白底图'的指令，方便扣图生产。")
+
+# 6. 生成按钮逻辑
+with col_btn:
+    if st.button("🚀 生成全能适配脚本 (v15.0 防卡死版)", type="primary", use_container_width=True):
+        # --- A. 智能拆分任务 ---
+        task_list = []
+        if user_input:
+            if "###" in user_input:
+                raw_tasks = [t.strip() for t in user_input.split("###") if len(t.strip()) > 2]
+            else:
+                blocks = re.split(r'\*\*方案[一二三四五六七八九十\d]+[:：].*?\*\*', user_input)
+                raw_tasks = [b.strip().replace('* ', '').replace('\n', ' ') for b in blocks if len(b.strip()) > 5]
+            
+            # --- 🟢 核心逻辑：自动插入“白底图”指令 ---
+            if need_white_bg:
+                for t in raw_tasks:
+                    task_list.append(t)  # 先放方案
+                    task_list.append("生成上图白底图")  # 紧接着放白底图指令
+            else:
+                task_list = raw_tasks # 否则就原样输出
+
+        # --- B. 生成脚本 ---
+        if task_list:
+            encoded_data = urllib.parse.quote(json.dumps(task_list))
+
+            # JS 核心代码 (v15.0 内核)
+            js_code = f"""(async function() {{
+                window.kill = false;
+                const tasks = JSON.parse(decodeURIComponent("{encoded_data}"));
+
+                // 1. UI 状态条
+                function showStatus(text, color = "#1e293b", textColor = "#fff") {{
+                    let el = document.getElementById('magic-status-bar');
+                    if (!el) {{
+                        el = document.createElement('div');
+                        el.id = 'magic-status-bar';
+                        el.style.cssText = "position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:999999; padding:10px 20px; border-radius:30px; font-family:sans-serif; font-size:14px; font-weight:bold; box-shadow:0 10px 25px rgba(0,0,0,0.2); transition: all 0.3s;";
+                        document.body.appendChild(el);
+                    }}
+                    el.textContent = text;
+                    el.style.backgroundColor = color;
+                    el.style.color = textColor;
+                }}
+
+                // 2. 输入框探测
+                function getInputBox() {{
+                    return document.querySelector(
+                        '#prompt-textarea, div[contenteditable="true"], textarea, .n-input__textarea-el, [placeholder*="输入"], [placeholder*="提问"]'
+                    );
+                }}
+
+                // 3. 发送按钮探测
+                function getSendBtn() {{
+                    let btns = Array.from(document.querySelectorAll('button, [role="button"], i'));
+                    return btns.find(b => {{
+                        const t = (b.innerText || b.ariaLabel || b.className || "").toLowerCase();
+                        const isSend = t.includes('发') || t.includes('send') || (b.tagName === 'I' && t.includes('send')) || b.getAttribute('data-testid') === 'send-button';
+                        const isNew = t.includes('新') || t.includes('new');
+                        const isStop = t.includes('stop') || t.includes('停止');
+                        return isSend && !isNew && !isStop && b.offsetParent !== null && !b.disabled;
+                    }});
+                }}
+
+                // 4. 生成状态探测
+                function isGenerating() {{
+                    let btns = Array.from(document.querySelectorAll('button, [role="button"]'));
+                    return btns.some(b => {{
+                        const t = (b.innerText || b.ariaLabel || "").toLowerCase();
+                        return t.includes('stop') || t.includes('停止') || t.includes('generating');
+                    }});
+                }}
+
+                console.log("%c🤖 v15.0 启动", "color:#6366f1; font-weight:bold;");
+                showStatus("🚀 脚本就绪...", "#6366f1");
+
+                for (let i = 0; i < tasks.length; i++) {{
+                    if (window.kill) {{ showStatus("🛑 已停止", "#ef4444"); break; }}
+                    
+                    showStatus("✍️ 输入: " + (i+1) + "/" + tasks.length, "#3b82f6");
+                    let box = getInputBox();
+                    if (!box) {{ showStatus("❌ 找不到输入框", "#ef4444"); break; }}
+                    
+                    box.focus();
+                    document.execCommand('insertText', false, tasks[i]);
+                    await new Promise(r => setTimeout(r, 1000));
+                    box.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    await new Promise(r => setTimeout(r, 500));
+                    box.dispatchEvent(new KeyboardEvent('keydown', {{bubbles:true, cancelable:true, key:'Enter', code:'Enter', keyCode:13}}));
+
+                    let sendBtn = getSendBtn();
+                    if (sendBtn) sendBtn.click();
+                    
+                    if (i < tasks.length - 1) {{
+                        let waitTime = 0;
+                        await new Promise(r => setTimeout(r, 3000));
+                        while(true) {{
+                            if (window.kill) break;
+                            if (!isGenerating()) break;
+                            
+                            showStatus("🎨 作画中 (" + waitTime + "s)...", "#8b5cf6");
+                            await new Promise(r => setTimeout(r, 1000));
+                            waitTime++;
+                            if (waitTime > 180) break;
+                        }}
+                        for (let s = 5; s > 0; s--) {{
+                            if (window.kill) break;
+                            showStatus("⏳ 冷却: " + s + "s", "#f59e0b");
+                            await new Promise(r => setTimeout(r, 1000));
+                        }}
+                    }}
+                }}
+                if(!window.kill) {{
+                    showStatus("🎉 全部完成！", "#10b981");
+                    setTimeout(() => document.getElementById('magic-status-bar').remove(), 5000);
+                }}
+            }})();"""
+
+            # --- C. 自动复制 ---
+            js_val = json.dumps(js_code)
+            components.html(f"""
+            <script>
+                const text = {js_val};
+                if (navigator.clipboard) {{
+                    navigator.clipboard.writeText(text).catch(err => console.log('Auto-copy failed'));
+                }}
+            </script>
+            """, height=0)
+
+            # --- D. 界面反馈 ---
+            st.success(f"✅ 已生成 {len(task_list)} 条任务指令！")
+            if need_white_bg:
+                st.info("💡 已开启生产模式：每张图后面都插入了“生成上图白底图”指令。")
+            
+            st.caption("👇 如果自动复制失败，请点击代码框右上角的【📄】按钮：")
+            st.code(js_code, language="javascript")
+            
         else:
-            # 兼容 **方案一：** 这种格式
-            blocks = re.split(r'\*\*方案[一二三四五六七八九十\d]+[:：].*?\*\*', user_input)
-            task_list = [b.strip().replace('* ', '').replace('\n', ' ') for b in blocks if len(b.strip()) > 5]
-
-    # --- B. 生成脚本 ---
-    if task_list:
-        # 数据编码
-        encoded_data = urllib.parse.quote(json.dumps(task_list))
-
-        # JS 核心代码 (v15.0 内核)
-        js_code = f"""(async function() {{
-            window.kill = false;
-            const tasks = JSON.parse(decodeURIComponent("{encoded_data}"));
-
-            // 1. UI 状态条
-            function showStatus(text, color = "#1e293b", textColor = "#fff") {{
-                let el = document.getElementById('magic-status-bar');
-                if (!el) {{
-                    el = document.createElement('div');
-                    el.id = 'magic-status-bar';
-                    el.style.cssText = "position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:999999; padding:10px 20px; border-radius:30px; font-family:sans-serif; font-size:14px; font-weight:bold; box-shadow:0 10px 25px rgba(0,0,0,0.2); transition: all 0.3s;";
-                    document.body.appendChild(el);
-                }}
-                el.textContent = text;
-                el.style.backgroundColor = color;
-                el.style.color = textColor;
-            }}
-
-            // 2. 输入框探测
-            function getInputBox() {{
-                return document.querySelector(
-                    '#prompt-textarea, div[contenteditable="true"], textarea, .n-input__textarea-el, [placeholder*="输入"], [placeholder*="提问"]'
-                );
-            }}
-
-            // 3. 发送按钮探测
-            function getSendBtn() {{
-                let btns = Array.from(document.querySelectorAll('button, [role="button"], i'));
-                return btns.find(b => {{
-                    const t = (b.innerText || b.ariaLabel || b.className || "").toLowerCase();
-                    const isSend = t.includes('发') || t.includes('send') || (b.tagName === 'I' && t.includes('send')) || b.getAttribute('data-testid') === 'send-button';
-                    const isNew = t.includes('新') || t.includes('new');
-                    const isStop = t.includes('stop') || t.includes('停止');
-                    return isSend && !isNew && !isStop && b.offsetParent !== null && !b.disabled;
-                }});
-            }}
-
-            // 4. 生成状态探测 (Anti-Freeze 核心)
-            function isGenerating() {{
-                let btns = Array.from(document.querySelectorAll('button, [role="button"]'));
-                return btns.some(b => {{
-                    const t = (b.innerText || b.ariaLabel || "").toLowerCase();
-                    return t.includes('stop') || t.includes('停止') || t.includes('generating');
-                }});
-            }}
-
-            console.log("%c🤖 v15.0 启动", "color:#6366f1; font-weight:bold;");
-            showStatus("🚀 脚本就绪...", "#6366f1");
-
-            for (let i = 0; i < tasks.length; i++) {{
-                if (window.kill) {{ showStatus("🛑 已停止", "#ef4444"); break; }}
-                
-                showStatus("✍️ 输入: " + (i+1) + "/" + tasks.length, "#3b82f6");
-                let box = getInputBox();
-                if (!box) {{ showStatus("❌ 找不到输入框", "#ef4444"); break; }}
-                
-                box.focus();
-                document.execCommand('insertText', false, tasks[i]);
-                await new Promise(r => setTimeout(r, 1000));
-                box.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                await new Promise(r => setTimeout(r, 500));
-                box.dispatchEvent(new KeyboardEvent('keydown', {{bubbles:true, cancelable:true, key:'Enter', code:'Enter', keyCode:13}}));
-
-                let sendBtn = getSendBtn();
-                if (sendBtn) sendBtn.click();
-                
-                if (i < tasks.length - 1) {{
-                    let waitTime = 0;
-                    await new Promise(r => setTimeout(r, 3000)); // 等待UI响应
-                    while(true) {{
-                        if (window.kill) break;
-                        // 只要停止按钮消失，就认为画完了
-                        if (!isGenerating()) break;
-                        
-                        showStatus("🎨 作画中 (" + waitTime + "s)...", "#8b5cf6");
-                        await new Promise(r => setTimeout(r, 1000));
-                        waitTime++;
-                        if (waitTime > 180) break; // 超时保护
-                    }}
-                    // 冷却
-                    for (let s = 5; s > 0; s--) {{
-                        if (window.kill) break;
-                        showStatus("⏳ 冷却: " + s + "s", "#f59e0b");
-                        await new Promise(r => setTimeout(r, 1000));
-                    }}
-                }}
-            }}
-            if(!window.kill) {{
-                showStatus("🎉 全部完成！", "#10b981");
-                setTimeout(() => document.getElementById('magic-status-bar').remove(), 5000);
-            }}
-        }})();"""
-
-        # --- C. 尝试自动复制 (隐形组件) ---
-        js_val = json.dumps(js_code)
-        components.html(f"""
-        <script>
-            const text = {js_val};
-            // 简单粗暴的复制尝试
-            if (navigator.clipboard) {{
-                navigator.clipboard.writeText(text).catch(err => console.log('Auto-copy failed'));
-            }}
-        </script>
-        """, height=0)
-
-        # --- D. 界面反馈 (核心修复：把代码框显示出来！) ---
-        st.success(f"✅ 已生成 {len(task_list)} 条任务脚本！(v15.0 防卡死版)")
-        st.caption("👇 如果自动复制失败，**请直接点击下面代码框右上角的【📄】按钮**：")
-        
-        # 🟢🟢🟢 这就是之前漏掉的那个框！现在加上了！ 🟢🟢🟢
-        st.code(js_code, language="javascript")
-        
-    else:
-        st.error("❌ 未识别到任务内容，请确保文本框有内容且包含 '**方案...**' 或 '###'")
+            st.error("❌ 未识别到任务内容，请确保文本框有内容且包含 '**方案...**' 或 '###'")
 
 # 7. 清空按钮
 if st.button("🗑️ 清空当前任务"):
     st.session_state.auto_input_cache = ""
-    st.session_state.polished_text = "" # 也清空润色的缓存
+    st.session_state.polished_text = ""
     st.rerun()
