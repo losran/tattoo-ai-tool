@@ -92,16 +92,30 @@ with col_main:
     
     # 📍 调整：数字框放到按钮右边，紧凑布局
     st.write("") 
-# 📍 定位：激发按钮占 4 份，数字输入占 1 份，挤在同一行
+
+# 📍 定位：激发按钮与数字框。右侧数字占 1 份，左侧按钮占 4 份
     col_trigger, col_num = st.columns([4, 1])
     
-    with col_trigger:
-        # 这里的激发按钮放在左侧
-        do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
-        
     with col_num:
-        # 数字输入框放在右侧，label_visibility="collapsed" 彻底隐藏标题
-        num = st.number_input("数量", 1, 15, 3, label_visibility="collapsed", key='temp_num')
+        # 先定义数字框，让程序提前记住这个数字
+        num = st.number_input("数量", 1, 15, 3, label_visibility="collapsed")
+        
+    with col_trigger:
+        if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
+            st.session_state.polished_text = "" 
+            st.session_state.generated_cache = []
+            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
+            
+            # 使用上面刚刚定义的 num
+            for _ in range(num):
+                raw_input = st.session_state.get('manual_editor', "")
+                # 强行确保它是字符串再拆分，彻底解决 [] 报错
+                manual_words = raw_input.split() if isinstance(raw_input, str) else []
+                
+                extra_count = 1 if chaos_level < 30 else (3 if chaos_level < 70 else 5)
+                extra = [random.choice(db_all[random.choice(list(db_all.keys()))]) for _ in range(extra_count) if any(db_all.values())]
+                st.session_state.generated_cache.append(" + ".join(manual_words + extra))
+            st.rerun()
 
     # 点击逻辑更新
     if do_generate:
