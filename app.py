@@ -3,64 +3,15 @@ import requests, base64, random, time
 
 # --- 1. 样式中控台 (精准还原设计稿质感) ---
 def apply_pro_style():
-    st.markdown("""
-    <style>
-        /* 全局深色底色 */
-        .stApp { background-color: #0f1014; color: #c9d1d9; }
-        
-        /* 左侧边栏：窄边黑化，适配设计稿 */
-        section[data-testid="stSidebar"] {
-            background-color: #16171d !important;
-            border-right: 1px solid #262730 !important;
-            min-width: 160px !important;
-        }
-        
-        /* 侧边栏底部统计：简洁文字对齐 */
-        .sidebar-metric-container {
-            margin-top: 20px;
-            padding: 10px 0;
-        }
-        .sidebar-metric-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-            color: #8b949e;
-            margin-bottom: 8px;
-        }
-        .metric-val { color: #ffffff; font-weight: 600; }
+# 每个页面的头部
+from style_manager import apply_pro_style, render_unified_sidebar
 
-        /* 中间输入框：磨砂感，无缝融入背景 */
-        .stTextArea textarea {
-            background-color: #1a1b23 !important;
-            border: 1px solid #262730 !important;
-            border-radius: 10px !important;
-            padding: 15px !important;
-            color: #d1d5db !important;
-        }
+# 统一装修
+apply_pro_style()
 
-        /* 右侧仓库管理区：卡片化分层 */
-        div[data-testid="stVerticalBlock"] > div[style*="border"] {
-            background-color: #16171d !important;
-            border: 1px solid #262730 !important;
-            border-radius: 12px !important;
-            padding: 15px !important;
-        }
-
-        /* 统一红色主按钮：外星情绪品牌色 */
-        .stButton > button[kind="primary"] {
-            background: linear-gradient(135deg, #ff4b4b 0%, #d62f2f 100%) !important;
-            border: none !important;
-            border-radius: 8px !important;
-            height: 48px !important;
-            font-weight: 600 !important;
-            box-shadow: 0 4px 15px rgba(255, 75, 75, 0.2) !important;
-        }
-        
-        /* 隐藏无用组件 */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-    </style>
-    """, unsafe_allow_html=True)
+# 统一侧边栏：传入你要显示的统计数据即可
+counts = {"主体": 28, "风格": 28, "动作": 15, "氛围": 12}
+render_unified_sidebar(counts)
 
 # --- 2. 核心功能配置 (保持原逻辑不动) ---
 st.set_page_config(layout="wide", page_title="Alien Mood Central")
@@ -161,4 +112,5 @@ with col_right:
             
     #
     st.button("🗑️ 批量清理选中标签", use_container_width=True)
+
 
