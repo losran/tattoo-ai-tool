@@ -243,7 +243,13 @@ with col_main:
                     else: st.session_state.selected_prompts.append(p)
                     st.rerun()
 
-if st.session_state.selected_prompts:
+# 结果预览与润色区域
+        if st.session_state.selected_prompts:
+            # 分割线
+            st.divider()
+            st.subheader("🎨 艺术润色成品")
+            
+            # 润色按钮逻辑
             if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
                 with st.spinner("AI 正在注入艺术灵魂..."):
                     # 1. 拼接用户选中的原始标签
@@ -281,7 +287,17 @@ if st.session_state.selected_prompts:
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"润色失败: {e}")               
+                        st.error(f"润色失败: {e}")
+
+            # 展示润色结果
+            if st.session_state.polished_text:
+                st.text_area("润色文案预览：", value=st.session_state.polished_text, height=300)
+                
+                # 下一步引导
+                if st.button("🚀 发送到自动化脚本生成", type="secondary", use_container_width=True):
+                    # 自动提取润色后的方案，存入 Tab 3 的缓存
+                    st.session_state.auto_input_cache = st.session_state.polished_text
+                    st.toast("已发送！请前往【自动化工具】页签生成脚本")          
 
     # 最终结果展示
     if st.session_state.get('polished_text'):
