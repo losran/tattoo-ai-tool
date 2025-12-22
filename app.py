@@ -104,20 +104,28 @@ with col_mid:
                 st.session_state.input_id += 1 
                 st.rerun()
 
+# --- 💥 碎片预览区：精准替换这段 ---
     if st.session_state.pre_tags:
         st.write("---")
-        st.subheader("💥 碎片预览")
+        st.subheader("📋 碎片预览 (勾选想要入库的)")
+        
         save_list = []
+        # 强制分分类展示，确保看得见
         for cat in ["主体", "风格", "部位", "氛围"]:
             words = [t for t in st.session_state.pre_tags if t['cat'] == cat]
             if words:
-                st.caption(f"📍 {cat}")
-                cols = st.columns(3)
+                st.markdown(f"**📍 {cat}**")
+                # 使用 columns 炸开碎片
+                cols = st.columns(3) 
                 for i, w in enumerate(words):
+                    # 使用动态 key 强制 Streamlit 刷新视图
                     with cols[i % 3]:
-                        if st.checkbox(w['val'], value=True, key=f"pre_{cat}_{i}"):
+                        chk_key = f"pre_{cat}_{i}_{st.session_state.input_id}"
+                        if st.checkbox(w['val'], value=True, key=chk_key):
                             save_list.append(w)
         
+        st.write("")
+        # 按钮组：确保它们留在 col_mid 底部
         c1, c2 = st.columns(2)
         with c1:
             if st.button("🚀 一键入云库", type="primary", use_container_width=True):
@@ -127,10 +135,11 @@ with col_mid:
                         st.session_state.db[t['cat']].append(t['val'])
                         sync_git(f_map[t['cat']], st.session_state.db[t['cat']])
                 st.session_state.pre_tags = []
-                st.success("同步成功")
-                time.sleep(1); st.rerun()
+                st.success("入库成功")
+                time.sleep(1)
+                st.rerun()
         with c2:
-            if st.button("🧹 扫走碎片", use_container_width=True):
+            if st.button("🧹 放弃清空", use_container_width=True):
                 st.session_state.pre_tags = []
                 st.rerun()
 
@@ -153,3 +162,4 @@ with col_lib:
                 sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[cat], st.session_state.db[cat])
                 st.rerun()
     else: st.caption("空空如也")
+
