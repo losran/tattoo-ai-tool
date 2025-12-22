@@ -1,5 +1,7 @@
 Naive hand-drawn flash sheet with a large cat
 balloon
+bow
+cherry
 gift box
 small duck
 元宵兔子,芝麻汤圆,灯笼,祥云
