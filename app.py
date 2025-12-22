@@ -104,35 +104,41 @@ with col_mid:
                 st.session_state.input_id += 1 
                 st.rerun()
 
-# --- 💥 碎片预览区：精准替换这段 ---
-# 2. 拆解按钮逻辑 (精准替换这一段)
+# 2. 立即拆解按钮
     if st.button("🔍 立即炸开碎片", type="primary", use_container_width=True):
         if raw:
             with st.spinner("💥 正在碎裂文案..."):
                 # 获取 AI 结果
                 res = client.chat.completions.create(
                     model="deepseek-chat",
-                    messages=[{"role": "system", "content": "要求：分类:短词|分类:短词。分类限:主体,风格,部位,氛围。词要拆成极细。"}, {"role": "user", "content": raw}],
+                    messages=[{"role": "system", "content": "要求：分类:短词|分类:短词。分类限:主体,风格,部位,氛围。词要拆成极细颗粒度。"}, {"role": "user", "content": raw}],
                     temperature=0.3
                 ).choices[0].message.content
                 
-                # 简单解析逻辑 (不带 try)
+                # --- 诊断：如果没反应，取消下面这行的注释看看 AI 说了啥 ---
+                # st.write("AI 返回内容：", res) 
+                
                 parsed = []
+                # 兼容中英文冒号和多种分隔符
                 for p in res.replace("：", ":").replace("，", "|").replace("\n", "|").split("|"):
                     if ":" in p:
                         k, v = p.split(":", 1)
                         key = k.strip()
                         if key in ["主体", "风格", "部位", "氛围"]:
+                            # 处理词条内的逗号/顿号
                             words = v.replace("、", "/").replace(",", "/").split("/")
                             for w in words:
                                 if w.strip():
                                     parsed.append({"cat": key, "val": w.strip()})
                 
-                # 关键：赋值并强制刷新
                 if parsed:
                     st.session_state.pre_tags = parsed
-                    st.session_state.input_id += 1 # 触发输入栏清空
-                    st.rerun() # <-- 这句是“炸开”碎片的引信，必须有！
+                    # 关键：手动标记 input_id 变化并强制刷新
+                    st.session_state.input_id += 1 
+                    st.rerun() 
+                else:
+                    # 💡 如果解析不到东西，直接报错并显示原文
+                    st.error(f"解析失败！AI 没有按格式返回。AI 原话是：{res}")
 
 # 👉 右：仓库管理
 with col_lib:
@@ -153,5 +159,6 @@ with col_lib:
                 sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[cat], st.session_state.db[cat])
                 st.rerun()
     else: st.caption("空空如也")
+
 
 
