@@ -187,44 +187,65 @@ with col_main:
 # 3. 激发按钮
         with c_btn:
             if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
-                # 🔴 修正1：必须清空“候选池”，防止点一次加8个，变成16个
-                st.session_state.mix_candidates = [] 
+                # 🔴 关键修复：点击瞬间清空你的 generated_cache，防止无限叠加
+                st.session_state.generated_cache = [] 
                 
-                # 使用缓存的数据库 (st.session_state.db) 速度更快，不用每次请求 GitHub
-                if any(st.session_state.db.values()):
+                # 这里为了适配当前文件，用了 st.session_state.db
+                # 如果你原本有 WAREHOUSE 变量，把下面这行改回你的写法即可
+                db_values = [v for v in st.session_state.db.values() if v] 
+                
+                if not db_values:
+                    st.error("仓库里没词，没法自动跑啊哥们！")
+                else:
                     for _ in range(mix_num):
-                        # --- 👇 这里完全保留你的算法逻辑 ---
-                        
-                        # 1. 获取手动输入 (兼容上下文变量 input_val)
-                        raw_input = st.session_state.get('input_val', "")
+                        # 1. 获取输入 (兼容你的 manual_editor，如果没有就读 input_val)
+                        raw_input = st.session_state.get('manual_editor', st.session_state.get('input_val', ""))
                         manual_words = raw_input.split() if isinstance(raw_input, str) else []
                         
-                        # 2. 混乱度决定抓取数量
+                        # 2. 你的算法逻辑：混乱度决定抓多少词
                         extra_count = 2 if chaos_level < 30 else (4 if chaos_level < 70 else 6)
                         extra = []
                         
-                        # 3. 随机抓取
                         import random
-                        # 筛选出有内容的分类，防止报错
+                        # 筛选出有内容的分类
                         valid_cats = [k for k, v in st.session_state.db.items() if v]
-                        
                         if valid_cats:
                             for _ in range(extra_count):
                                 random_cat = random.choice(valid_cats)
                                 extra.append(random.choice(st.session_state.db[random_cat]))
                         
-                        # 4. 组合
+                        # 3. 组合
                         combined_p = " + ".join(filter(None, manual_words + extra))
                         
-                        # --- 👆 你的逻辑结束 ---
-
-                        # 🔴 修正2：存入 mix_candidates (为了让下面的红/灰交互生效)
-                        st.session_state.mix_candidates.append(combined_p)
+                        # 🔴 存入你的变量 generated_cache
+                        st.session_state.generated_cache.append(combined_p)
                     
-                    st.toast(f"已生成 {len(st.session_state.mix_candidates)} 个新灵感！")
+                    st.toast(f"已生成 {len(st.session_state.generated_cache)} 个组合")
                     st.rerun()
-                else:
-                    st.warning("⚠️ 仓库空的！请先去 Tab 1 拆解一些素材入库。")
+
+        # 4. 交互核心区：点击变红 (渲染 generated_cache)
+        # 这里的 generated_cache 就是你原来的变量，我只是加上了“点击变色”的 UI 逻辑
+        if "generated_cache" in st.session_state and st.session_state.generated_cache:
+            st.divider()
+            st.caption("👇 点击标签以【选中/取消】（红色 = 已选中）：")
+            
+            with st.container(height=300):
+                cols = st.columns(2)
+                for i, item in enumerate(st.session_state.generated_cache):
+                    # 判断当前是否已选中
+                    is_selected = item in st.session_state.selected_prompts
+                    
+                    # 变色逻辑
+                    btn_kind = "primary" if is_selected else "secondary"
+                    btn_label = f"✅ {item}" if is_selected else f"⬜ {item}"
+                    
+                    with cols[i % 2]:
+                        if st.button(btn_label, key=f"gen_cache_{i}", use_container_width=True, type=btn_kind):
+                            if is_selected:
+                                st.session_state.selected_prompts.remove(item)
+                            else:
+                                st.session_state.selected_prompts.append(item)
+                            st.rerun()
 
     # 📍 方案筛选区 (注入高亮 CSS)
     if st.session_state.generated_cache and not st.session_state.get('polished_text'):
