@@ -34,12 +34,32 @@ def sync_data(filename, data_list):
     })
 
 def get_image_desc(image_bytes):
+    """
+    升级版：调用 Hugging Face 识别图片，带自动重试功能
+    """
     API_URL = "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    try:
-        resp = requests.post(API_URL, headers=headers, data=image_bytes)
-        return resp.json()[0]['generated_text']
-    except: return None
+    
+    # 最多重试 5 次
+    for i in range(5):
+        response = requests.post(API_URL, headers=headers, data=image_bytes)
+        
+        # 情况 1：成功拿到结果
+        if response.status_code == 200:
+            return response.json()[0]['generated_text']
+        
+        # 情况 2：模型正在加载 (503 Error)
+        elif response.status_code == 503:
+            st.warning(f"AI 正在起床（加载中），请稍候... ({i+1}/5)")
+            time.sleep(10)  # 等 10 秒再重试
+            continue
+            
+        # 情况 3：其他错误 (Token 错或者网络问题)
+        else:
+            st.error(f"抱脸接口报错: {response.status_code} - {response.text}")
+            return None
+            
+    return "模型加载超时，请稍后再试"
 
 def polish_prompts_chinese(prompt_list):
     combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(prompt_list)])
