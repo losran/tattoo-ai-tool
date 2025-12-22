@@ -42,17 +42,21 @@ if st.session_state.is_open:
         words = ["日式 old school", "小圆点", "藤蔓", "郁金香", "雏菊"]
         
         st.write("")
-        # 📍 标签交互：文字和叉号合并在一个视觉框内
+        # app.py 右侧循环部分
+        # ...
         for idx, w in enumerate(words):
-            # 用一个极细的 column 组合来模拟“同一个框”
-            t_col, x_col = st.columns([6, 1.2])
+            # 📍 这里的 [5, 1] 比例是关键，给文字 80% 的展示空间
+            t_col, x_col = st.columns([5, 1], gap="small")
+            
             with t_col:
-                # 文字按钮：去掉右边框
-                if st.button(f" {w}", key=f"add_{idx}", use_container_width=True):
+                # 这个按钮现在会自动换行了，哪怕单词很长也不会飞出去
+                if st.button(f"{w}", key=f"add_{idx}", use_container_width=True):
                     st.session_state.input_val += f" {w}"
                     st.rerun()
+                    
             with x_col:
-                # 叉号按钮：去掉左边框
+                # 叉号按钮保持小巧
                 if st.button("✕", key=f"del_{idx}", use_container_width=True):
                     st.toast(f"已清理: {w}")
                     st.rerun()
+
