@@ -107,38 +107,44 @@ with col_mid:
 # 2. 立即拆解按钮
     if st.button("🔍 立即炸开碎片", type="primary", use_container_width=True):
         if raw:
-            with st.spinner("💥 正在碎裂文案..."):
-                # 获取 AI 结果
+            with st.spinner("💥 正在执行大爆炸拆解..."):
+                # --- [TEST 1: API 连接测试] ---
                 res = client.chat.completions.create(
                     model="deepseek-chat",
-                    messages=[{"role": "system", "content": "要求：分类:短词|分类:短词。分类限:主体,风格,部位,氛围。词要拆成极细颗粒度。"}, {"role": "user", "content": raw}],
-                    temperature=0.3
+                    messages=[
+                        {"role": "system", "content": "要求：分类:词|分类:词。分类限:主体,风格,部位,氛围。禁止废话。"},
+                        {"role": "user", "content": raw}
+                    ],
+                    temperature=0.1 # 降低随机性，强制 AI 听话
                 ).choices[0].message.content
                 
-                # --- 诊断：如果没反应，取消下面这行的注释看看 AI 说了啥 ---
-                # st.write("AI 返回内容：", res) 
-                
+                # --- [TEST 2: 解析有效性测试] ---
                 parsed = []
-                # 兼容中英文冒号和多种分隔符
-                for p in res.replace("：", ":").replace("，", "|").replace("\n", "|").split("|"):
-                    if ":" in p:
-                        k, v = p.split(":", 1)
-                        key = k.strip()
-                        if key in ["主体", "风格", "部位", "氛围"]:
-                            # 处理词条内的逗号/顿号
-                            words = v.replace("、", "/").replace(",", "/").split("/")
-                            for w in words:
-                                if w.strip():
-                                    parsed.append({"cat": key, "val": w.strip()})
+                # 强力清洗：去掉 AI 可能回的“好的”、“摘要”等废话
+                clean_res = res.replace("：", ":").replace("，", "|").replace("\n", "|")
+                raw_parts = [p for p in clean_res.split("|") if ":" in p]
                 
+                for p in raw_parts:
+                    k, v = p.split(":", 1)
+                    key = k.strip()
+                    if key in ["主体", "风格", "部位", "氛围"]:
+                        words = v.replace("、", "/").replace(",", "/").split("/")
+                        for w in words:
+                            if w.strip():
+                                parsed.append({"cat": key, "val": w.strip()})
+                
+                # --- [TEST 3: 状态变更测试] ---
                 if parsed:
                     st.session_state.pre_tags = parsed
-                    # 关键：手动标记 input_id 变化并强制刷新
-                    st.session_state.input_id += 1 
-                    st.rerun() 
+                    st.session_state.input_id += 1
+                    st.rerun()
                 else:
-                    # 💡 如果解析不到东西，直接报错并显示原文
-                    st.error(f"解析失败！AI 没有按格式返回。AI 原话是：{res}")
+                    # 💥 功能异常测试反馈：如果啥也没拆出来，立刻显示这个红色看板
+                    st.error("❌ 功能异常：解析碎片失败")
+                    with st.expander("🛠️ 查看诊断数据 (Debug Test)"):
+                        st.write("**AI 原始回复：**", res)
+                        st.write("**清洗后数据：**", raw_parts)
+                        st.info("建议：请检查 AI 是否输出了非预期的中文句子。")
 
 # 👉 右：仓库管理
 with col_lib:
@@ -159,6 +165,7 @@ with col_lib:
                 sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[cat], st.session_state.db[cat])
                 st.rerun()
     else: st.caption("空空如也")
+
 
 
 
