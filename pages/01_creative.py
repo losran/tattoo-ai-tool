@@ -1,19 +1,22 @@
 import streamlit as st
 from style_manager import apply_pro_style
+import requests, base64, random, time, json, urllib.parse
+from openai import OpenAI
 
 # 📍 傻瓜调用：全站视觉一键同步
 apply_pro_style()
-import requests, base64, random, time
-from openai import OpenAI
 
-# --- 1. 核心配置 (请确保 Secrets 已配置) ---
+# --- 1. 核心配置 ---
 client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO = "losran/tattoo-ai-tool"
 
 WAREHOUSE = {
-    "Subject": "data/subjects.txt", "Action": "data/actions.txt", 
-    "Style": "data/styles.txt", "Mood": "data/moods.txt", "Usage": "data/usage.txt"
+    "Subject": "data/subjects.txt", 
+    "Action": "data/actions.txt", 
+    "Style": "data/styles.txt", 
+    "Mood": "data/moods.txt", 
+    "Usage": "data/usage.txt"
 }
 GALLERY_FILE = "gallery/inspirations.txt"
 
@@ -41,100 +44,39 @@ def save_to_github(path, data_list):
 
 # --- 3. UI 布局与状态初始化 ---
 st.set_page_config(layout="wide", page_title="Creative Engine")
-st.title("🎨 创意引擎")
-# 📍 定位：外观装修区 (插入在 st.title 下方)
+
+# 初始化 Session State
+for key in ['selected_prompts', 'generated_cache', 'polished_text', 'manual_editor']:
+    if key not in st.session_state:
+        if 'editor' in key or 'text' in key: st.session_state[key] = ""
+        else: st.session_state[key] = []
+
+# 自定义 CSS
 st.markdown("""
 <style>
-    /* 1. 全局背景与字体 */
-    .stApp {
-        background-color: #0e1117;
-        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
-    }
-
-    /* 2. 侧边栏美化 */
-    section[data-testid="stSidebar"] {
-        background-color: #161b22 !important;
-        border-right: 1px solid #30363d;
-    }
-
-    /* 3. 灵感调配区 - 文本框与卡片 */
-    div[data-testid="stForm"] {
-        border: 1px solid #30363d !important;
-        border-radius: 12px;
-    }
-    
-    /* 文本输入框样式 */
-    .stTextArea textarea {
-        background-color: #0d1117 !important;
-        border: 1px solid #30363d !important;
-        border-radius: 8px !important;
-        color: #c9d1d9 !important;
-        font-size: 15px !important;
-    }
-
-    /* 4. 方案筛选卡片 (核心进化) */
+    .stApp { background-color: #0e1117; }
     div[data-testid="stButton"] > button {
-        width: 100%;
-        background-color: #161b22 !important;
-        border: 1px solid #30363d !important;
-        border-radius: 10px !important;
-        padding: 22px !important;
-        text-align: left !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        width: 100%; background-color: #161b22 !important;
+        border: 1px solid #30363d !important; border-radius: 10px !important;
+        padding: 22px !important; text-align: left !important;
         color: #8b949e !important;
     }
-
-    /* 鼠标悬停 */
-    div[data-testid="stButton"] > button:hover {
-        border-color: #58a6ff !important;
-        background-color: #1c2128 !important;
-        transform: translateY(-2px);
-    }
-
-    /* 📍 选中状态 (红色高亮) */
     div[data-testid="stButton"] > button[kind="primary"] {
         border: 2px solid #ff4b4b !important;
-        box-shadow: 0 4px 20px rgba(255, 75, 75, 0.15) !important;
         background-color: #211d1d !important;
         color: #ffffff !important;
     }
-
-    /* 5. 激发按钮 (主操作) */
     .stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #ff4b4b 0%, #d62f2f 100%) !important;
-        border: none !important;
-        font-weight: 600 !important;
-        letter-spacing: 1px;
     }
-
-    /* 6. 右侧仓库管理列表 */
-    .stCheckbox label {
-        color: #8b949e !important;
-        font-size: 14px !important;
-    }
-    div[data-testid="stVerticalBlock"] > div[style*="border: 1px solid"] {
-        background-color: #0d1117 !important;
-        border: 1px solid #30363d !important;
-        border-radius: 8px !important;
-    }
-    
-    /* 隐藏滚动条美化 */
-    ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-track { background: #0d1117; }
-    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
 </style>
 """, unsafe_allow_html=True)
-# 📍 修正初始化逻辑：确保 manual_editor 是字符串不是列表 []
-for key in ['selected_prompts', 'generated_cache', 'polished_text', 'manual_editor']:
-    if key not in st.session_state:
-        if 'editor' in key or 'text' in key:
-            st.session_state[key] = ""
-        else:
-            st.session_state[key] = []
+
+st.title("🎨 创意引擎")
 
 col_main, col_gallery = st.columns([5, 2.5])
 
-# --- 右侧：仓库管理 (支持导入到输入框) ---
+# --- 右侧：仓库管理 ---
 with col_gallery:
     st.subheader("📦 仓库管理")
     mode = st.radio("模式", ["素材仓库", "灵感成品"], horizontal=True)
@@ -147,13 +89,9 @@ with col_gallery:
                 for w in words:
                     if st.checkbox(f" {w}", key=f"manage_{cat}_{w}"): selected_items.append(w)
             if selected_items:
-                st.divider()
-                # 导入功能
                 if st.button("➕ 导入到组合输入框", use_container_width=True):
-                    existing = st.session_state.manual_editor
-                    st.session_state.manual_editor = f"{existing} {' '.join(selected_items)}".strip()
+                    st.session_state.manual_editor = f"{st.session_state.manual_editor} {' '.join(selected_items)}".strip()
                     st.rerun()
-                # 删除功能
                 if st.button(f"🗑️ 删除选中的 {len(selected_items)} 项", type="primary", use_container_width=True):
                     remaining = [w for w in words if w not in selected_items]
                     save_to_github(WAREHOUSE[cat], remaining); st.rerun()
@@ -170,181 +108,85 @@ with col_gallery:
 
 # --- 左侧：核心生成区 ---
 with col_main:
-    # --- 修正后的展示逻辑 ---
-    st.subheader("🎲 方案筛选 (点击卡片进行调配)")
+    # 1. 参数设置
+    col_cfg1, col_cfg2 = st.columns(2)
+    with col_cfg1: num = st.slider("生成方案数量", 1, 10, 6)
+    with col_cfg2: chaos_level = st.slider("混乱度 (Chaos)", 0, 100, 50)
     
-    # 🔴 关键点：这里必须和生成逻辑里的变量名 st.session_state.generated_cache 对应
-    if "generated_cache" in st.session_state and st.session_state.generated_cache:
-        cols = st.columns(2) # 每行显示2个方案
-        for i, prompt_text in enumerate(st.session_state.generated_cache):
-            with cols[i % 2]:
-                # 使用一个容器或按钮来显示内容
-                st.info(f"**方案 {i+1}**\n\n{prompt_text}") 
-    else:
-        st.info("💡 请点击上方按钮激发创意组合")
+    st.session_state.manual_editor = st.text_area("✍️ 组合输入框 (在此输入或从右侧导入关键词)", value=st.session_state.manual_editor)
+
+    # 2. 激发按钮
+    if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
+        st.session_state.polished_text = "" 
+        st.session_state.generated_cache = []
+        st.session_state.selected_prompts = []
         
-# 确保这一行是在 with col_trigger: 的下一级缩进
-    do_generate = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
+        db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
+        
+        if not any(db_all.values()):
+            st.error("⚠️ 仓库是空的！")
+        else:
+            for _ in range(num):
+                current_tags = st.session_state.manual_editor.split()
+                # 强制分类：注意此处 Key 必须首字母大写以匹配 WAREHOUSE
+                MANDATORY_KEYS = ['Subject', 'Style'] 
+                SIDE_KEYS = [k for k in db_all.keys() if k not in MANDATORY_KEYS and db_all[k]]
 
-    if do_generate:
-            # 1. 清空旧数据
-            st.session_state.polished_text = "" 
-            st.session_state.generated_cache = []
-            
-            # 2. 获取数据
-            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-            
-            if not any(db_all.values()):
-                st.error("⚠️ 仓库是空的！")
-            else:
-                import random
+                for key in MANDATORY_KEYS:
+                    if key in db_all and db_all[key]:
+                        current_tags.append(random.choice(db_all[key]))
                 
-                # 🔴 配置区：必须锁死的分类 Key (请核对你的 WAREHOUSE)
-                # 必须先抽这俩！
-                MANDATORY_KEYS = ['subject', 'style'] 
+                if SIDE_KEYS:
+                    extra_count = 2 if chaos_level < 30 else (5 if chaos_level < 70 else 8)
+                    for _ in range(extra_count):
+                        rand_cat = random.choice(SIDE_KEYS)
+                        current_tags.append(random.choice(db_all[rand_cat]))
                 
-                # 找出剩下的所有“配菜”分类 (颜色、质感、构图...)
-                # 排除掉那两个必选的，剩下的都可以随机抓
-                SIDE_KEYS = [k for k, v in db_all.items() if k not in MANDATORY_KEYS and v]
+                combined_p = " + ".join(list(dict.fromkeys(filter(None, current_tags))))
+                st.session_state.generated_cache.append(combined_p)
+            st.rerun()
 
-                for _ in range(num):
-                    # A. 存放本次生成的标签
-                    current_tags = []
-                    
-                    # B. 第一步：先抽“必选项” (Subject + Style)
-                    for key in MANDATORY_KEYS:
-                        if key in db_all and db_all[key]:
-                            current_tags.append(random.choice(db_all[key]))
-                    
-                    # C. 第二步：随机叠加“配菜”
-                    if SIDE_KEYS:
-                        # 根据混乱度决定加几个配菜
-                        # 混乱度低：加 2-3 个，保持干净
-                        # 混乱度高：加 5-8 个，如你所愿“随便叠加”
-                        if chaos_level < 30:
-                            extra_count = random.randint(2, 3)
-                        elif chaos_level < 70:
-                            extra_count = random.randint(4, 5)
-                        else:
-                            extra_count = random.randint(6, 9) # 疯狂叠加模式
-                        
-                        for _ in range(extra_count):
-                            # 1. 先随机选一个分类 (比如抽到了“颜色”)
-                            rand_cat = random.choice(SIDE_KEYS)
-                            # 2. 再从这个分类里抽一个词 (比如“荧光绿”)
-                            word = random.choice(db_all[rand_cat])
-                            current_tags.append(word)
-                    
-                    # D. 组合结果
-                    # 去重 (保持顺序)
-                    unique_tags = list(dict.fromkeys(filter(None, current_tags)))
-                    combined_p = " + ".join(unique_tags)
-                    
-                    st.session_state.generated_cache.append(combined_p)
-                
-                st.rerun()
-
-    # 📍 方案筛选区 (注入高亮 CSS)
-    if st.session_state.generated_cache and not st.session_state.get('polished_text'):
+    # 3. 方案展示与筛选 (核心逻辑，仅此一套)
+    if st.session_state.generated_cache and not st.session_state.polished_text:
         st.divider()
         st.subheader("🎲 方案筛选 (点击卡片进行调配)")
-        
-        st.markdown("""
-        <style>
-        div[data-testid="stButton"] > button {
-            border: 1px solid #333 !important;
-            padding: 24px !important;
-            height: auto !important;
-            text-align: left !important;
-            background-color: #1e1e1e !important;
-            transition: 0.2s !important;
-        }
-        div[data-testid="stButton"] > button[kind="primary"] {
-            border: 2px solid #ff4b4b !important;
-            box-shadow: 0 0 12px rgba(255, 75, 75, 0.3) !important;
-            background-color: #2a1a1a !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
         cols = st.columns(2)
         for idx, p in enumerate(st.session_state.generated_cache):
             with cols[idx % 2]:
                 is_sel = p in st.session_state.selected_prompts
-                if st.button(f"方案 {idx+1}\n\n{p}", key=f"sel_{idx}", use_container_width=True, type="primary" if is_sel else "secondary"):
+                if st.button(f"方案 {idx+1}\n\n{p}", key=f"sel_{idx}", type="primary" if is_sel else "secondary"):
                     if is_sel: st.session_state.selected_prompts.remove(p)
                     else: st.session_state.selected_prompts.append(p)
                     st.rerun()
 
-# 结果预览与润色区域
-        if st.session_state.selected_prompts:
-            # 分割线
-            st.divider()
-            st.subheader("🎨 艺术润色成品")
-            
-            # 润色按钮逻辑
-            if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
-                with st.spinner("AI 正在注入艺术灵魂..."):
-                    # 1. 拼接用户选中的原始标签
-                    combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
-                    
-                    # 2. 升级版 System Prompt：硬核纹身技法向 (去除散文风)
-                   # 2. 最终加强版 System Prompt：丰富细节 + 深度扩写 + 强制“纹身贴”
-                    system_prompt = f"""
-                    你是一位【资深纹身贴文案策划】。
-                    用户的输入是一组标签。你的任务是基于这些标签，**大幅扩写**成一段画面感极强、细节丰富、描述具体的中文文案。
-
-                    【扩写核心要求 - 必须遵守】：
-                    1. **拒绝简短**：绝对不要只写“一只粉色的兔子”。你要写“一只神态无辜的兔子，全身覆盖着柔和的淡粉色，线条圆润软萌...”。
-                    2. **细节脑补**：
-                       - **标签是颜色**（如“绿色”）：要扩写色彩的质感（如“如翡翠般通透的深绿色”、“带有荧光感的酸性绿”）。
-                       - **标签是物体**（如“蝴蝶”）：要扩写姿态（如“展翅欲飞”、“静止停歇”）。
-                       - **标签是风格**（如“手绘”）：要扩写笔触（如“笔触略带拙稚感”、“线条流畅自然”）。
-                    3. **强制后缀**：**文案中必须自然融入“纹身贴”这三个字！**
-
-                    【混乱度 (Chaos Level) 响应】：当前混乱度 {chaos_level}/100
-                    - **保守模式 (0-40)**：**侧重视觉描述**。详细描述图案的颜色层次、线条粗细、构图位置，字数约 30-50 字。
-                    - **平衡模式 (40-70)**：**侧重氛围营造**。加入对气质、感觉的描写（如“治愈”、“清冷”），字数约 50-80 字。
-                    - **艺术模式 (70-100)**：**侧重意境与故事**。使用更华丽的辞藻，把图案描述成一件艺术品，字数约 60-100 字。
-
-                    【待润色标签】：
-                    {combined_input}
-
-                    请直接输出方案，格式严格如下：
-                    **方案X：** [你扩写后的详细描述]
-                    """
-                    
-                    try:
-                        res = client.chat.completions.create(
-                            model="deepseek-chat",
-                            messages=[
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": "请开始润色。"}
-                            ],
-                            temperature=0.7 + (chaos_level / 200) # 让温度随混乱度动态变化
-                        ).choices[0].message.content
-                        
-                        st.session_state.polished_text = res
-                        st.rerun()
-                        
-                    except Exception as e:
-                        st.error(f"润色失败: {e}")
-
-            # 展示润色结果
-            if st.session_state.polished_text:
-                st.text_area("润色文案预览：", value=st.session_state.polished_text, height=300)
+    # 4. 润色区域
+    if st.session_state.selected_prompts and not st.session_state.polished_text:
+        st.divider()
+        if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
+            with st.spinner("AI 正在注入艺术灵魂..."):
+                combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
+                system_prompt = f"""你是一位【资深纹身贴文案策划】。
+                你的任务是基于标签大幅扩写成描述具体的中文文案。
+                1. 拒绝简短。 2. 细节脑补神态姿态。 3. 强制包含“纹身贴”三个字。
+                当前混乱度 {chaos_level}/100。
+                格式：**方案X：** [描述]"""
                 
-                # 下一步引导
-                if st.button("🚀 发送到自动化脚本生成", type="secondary", use_container_width=True):
-                    # 自动提取润色后的方案，存入 Tab 3 的缓存
-                    st.session_state.auto_input_cache = st.session_state.polished_text
-                    st.toast("已发送！请前往【自动化工具】页签生成脚本")          
+                try:
+                    res = client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": combined_input}],
+                        temperature=0.7 + (chaos_level / 200)
+                    ).choices[0].message.content
+                    st.session_state.polished_text = res
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"润色失败: {e}")
 
-    # 最终结果展示
-    if st.session_state.get('polished_text'):
+    # 5. 润色结果展示
+    if st.session_state.polished_text:
         st.divider()
         st.subheader("🎨 艺术润色成品")
-        final_content = st.text_area("润色文案预览：", st.session_state.polished_text, height=300)
+        final_content = st.text_area("润色文案预览：", st.session_state.polished_text, height=400)
         
         c_btn1, c_btn2, c_btn3 = st.columns(3)
         with c_btn1:
@@ -358,4 +200,6 @@ with col_main:
                 st.switch_page("pages/02_automation.py")
         with c_btn3:
             if st.button("🔄 重新调配", use_container_width=True):
-                st.session_state.polished_text = ""; st.rerun()
+                st.session_state.polished_text = ""
+                st.session_state.selected_prompts = []
+                st.rerun()
