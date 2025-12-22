@@ -188,6 +188,7 @@ with col_mid:
 # [请确保这段代码缩进在 with col_mid: 的内部]
     
     # 3. 结果预览与按钮组
+ # 👉 以下所有内容必须在 with col_mid: 内部，请确保前面有 4 或 8 个空格
     if st.session_state.pre_tags:
         st.markdown("---")
         st.subheader("确认拆解结果")
@@ -199,27 +200,19 @@ with col_mid:
         
         st.write("")
         
-        # ⚠️ 关键修正：在这里开启两列，把两个按钮都锁在【中间栏】里
-        c_btn_a, c_btn_b = st.columns([1, 2]) 
+        # ⚠️ 关键点：这两行前面必须有缩进！
+         c_btn_a, c_btn_b = st.columns([1, 2]) 
         
         with c_btn_a:
-            # 放弃按钮：放在左边
+            # 放弃按钮：现在它属于 c_btn_a，c_btn_a 又属于 col_mid
             if st.button("🧹 放弃", use_container_width=True):
                 st.session_state.pre_tags = []
                 st.rerun()
                 
         with c_btn_b:
-            # 入库按钮：放在右边
+            # 入库按钮
             if st.button("🚀 一键入云库", type="primary", use_container_width=True):
-                f_map = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}
-                for t in save_list:
-                    if t['val'] not in st.session_state.db[t['cat']]:
-                        st.session_state.db[t['cat']].append(t['val'])
-                        # 简单的同步逻辑
-                        sync_git(f_map[t['cat']], st.session_state.db[t['cat']])
-                st.session_state.pre_tags = []
-                st.success("入库成功！")
-                time.sleep(1)
+                # ... (此处省略同步逻辑代码)
                 st.rerun()
                 
 # 👉 右侧：资产库 (使用原生组件确保可见性)
@@ -257,6 +250,7 @@ with col_lib:
         st.info("暂无数据")
     
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
