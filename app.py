@@ -123,27 +123,42 @@ with col_main:
         # 此处保留你原有的 AI 拆分逻辑代码
 
 # C. 右侧仓库管理
+# 📍 定位：app.py 右侧仓库循环部分
 with col_right:
     st.subheader("📦 仓库管理")
     
-    # 模拟设计稿顶部的过滤与选择
-    r_c1, r_c2 = st.columns([1, 2])
-    with r_c1:
-        st.checkbox("仅收藏")
-    with r_c2:
-        view_mode = st.selectbox("类型:", list(WAREHOUSE.keys()), label_visibility="collapsed")
+    # 类型切换
+    cat = st.selectbox("类型选择:", list(WAREHOUSE.keys()), label_visibility="collapsed")
+    words = get_github_data(WAREHOUSE[cat])
     
-    # 仓库列表
-    words = get_github_data(WAREHOUSE.get(view_mode, "Subject"))
+    st.divider()
     
-    with st.container(height=550, border=True):
-        if words:
-            st.caption(f"生成的提示词标签将在下面展示 (共 {len(words)} 个)")
-            for w in words:
-                # 选中的提示词高亮
-                st.checkbox(f" {w}", key=f"warehouse_{w}")
-        else:
-            st.info("暂无素材数据")
+    if words:
+        with st.container(height=500):
+            for idx, w in enumerate(words):
+                # 📍 核心：一行分两个列，左边点字导入，右边点垃圾桶删除
+                c_word, c_del = st.columns([4, 1])
+                
+                with c_word:
+                    # 点击单词：直接追加到中间的输入框里
+                    if st.button(f"➕ {w}", key=f"add_{w}_{idx}", use_container_width=True):
+                        # 如果框里已经有词了，加个空格再拼上去
+                        if st.session_state.manual_editor:
+                            st.session_state.manual_editor += f" {w}"
+                        else:
+                            st.session_state.manual_editor = w
+                        st.rerun()
+                
+                with c_del:
+                    # 点击垃圾桶：直接从仓库删除
+                    if st.button("🗑️", key=f"del_{w}_{idx}"):
+                        remaining = [item for item in words if item != w]
+                        save_to_github(WAREHOUSE[cat], remaining)
+                        st.toast(f"已删除: {w}") # 冒个泡提醒一下
+                        st.rerun()
+    else:
+        st.info("分类下暂无素材")
             
     #
     st.button("🗑️ 批量清理选中标签", use_container_width=True)
+
