@@ -2,54 +2,63 @@ import streamlit as st
 from openai import OpenAI
 import random, requests, base64, time
 
-# --- 1. 配置 ---
+# --- 1. 基础配置 ---
 client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO = "losran/tattoo-ai-tool"
 
-st.set_page_config(page_title="Tattoo Pro Station", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Tattoo Pro", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. CSS 布局 (左侧纯净，按钮归位) ---
+# --- 2. 稳定版 CSS (修复消失问题) ---
 st.markdown("""
     <style>
+    /* 基础重置 */
     #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
-    .main { background-color: #0d0d0d; }
-    .block-container { padding: 0 !important; max-width: 100% !important; }
-    
-    /* [1] 左侧固定导航 (只放 Logo 和 统计) */
+    .main { background-color: #0d0d0d; color: #fff; }
+    .block-container { padding-top: 0 !important; max-width: 100% !important; }
+
+    /* [1] 左侧导航：绝对定位于左侧 */
     [data-testid="stColumn"]:nth-child(1) {
-        position: fixed; left: 0; top: 0; bottom: 0;
-        width: 120px !important;
-        background: #161b22;
+        background-color: #161b22;
         border-right: 1px solid #333;
-        z-index: 1001;
-        padding-top: 30px !important;
-        text-align: center;
+        padding: 20px !important;
+        height: 100vh;
+        position: fixed; left: 0; top: 0; 
+        width: 130px !important;
+        z-index: 999;
     }
 
-    /* 左下角统计 */
-    .sticky-stats { position: fixed; left: 10px; bottom: 20px; width: 100px; z-index: 1002; }
-    .nav-item { background: rgba(255,255,255,0.03); border:1px solid #333; border-radius:8px; margin-top:8px; padding:5px; }
-    .nav-val { color: #58a6ff; font-weight:bold; font-size:16px; }
-    .nav-lbl { color: #888; font-size:10px; }
-
-    /* [2] 中间操作区 (输入框 + 结果) */
+    /* [2] 中间操作区：自适应宽度 */
     [data-testid="stColumn"]:nth-child(2) {
-        margin-left: 140px !important; margin-right: 380px !important;
-        width: auto !important; padding: 40px !important;
+        margin-left: 140px !important; /* 给左边留位置 */
+        margin-right: 360px !important; /* 给右边留位置 */
+        padding: 40px !important;
+        width: auto !important;
     }
 
-    /* [3] 右侧资产库 */
+    /* [3] 右侧仓库：绝对定位于右侧 (修复消失bug) */
     [data-testid="stColumn"]:nth-child(3) {
-        position: fixed; right: 0; top: 0; bottom: 0;
-        width: 360px !important;
-        background: #0d1117; border-left: 1px solid #333;
-        padding: 30px 20px !important; z-index: 1000; overflow-y: auto;
+        background-color: #0d1117;
+        border-left: 1px solid #333;
+        padding: 20px !important;
+        height: 100vh;
+        position: fixed; right: 0; top: 0;
+        width: 350px !important;
+        z-index: 999;
+        overflow-y: auto !important; /* 强制滚动条 */
     }
 
-    /* 样式微调 */
-    .stTextArea textarea { background-color: #161b22; color: #fff; border: 1px solid #333; }
-    .preview-box { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 20px; margin-top: 20px; }
+    /* 组件样式优化 */
+    .stat-box { margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: center; }
+    .stat-num { font-size: 18px; font-weight: bold; color: #58a6ff; }
+    .stTextArea textarea { background: #1a1a1a; color: #fff; border: 1px solid #333; }
+    
+    /* 标签样式 */
+    .repo-item {
+        display: flex; justify-content: space-between; align-items: center;
+        background: #1f1f1f; margin-bottom: 6px; padding: 6px 12px; border-radius: 6px; border: 1px solid #333;
+    }
+    .repo-text { font-size: 13px; color: #ddd; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -60,106 +69,149 @@ def sync_git(fn, data):
     try:
         r = requests.get(url, headers=hd).json()
         sha = r.get('sha')
-        content = base64.b64encode("\n".join(list(set(data))).encode()).decode()
+        # 过滤空字符
+        clean_data = [d for d in data if d and d.strip()]
+        content = base64.b64encode("\n".join(list(set(clean_data))).encode()).decode()
         requests.put(url, headers=hd, json={"message": "sync", "content": content, "sha": sha})
     except: pass
 
 def get_git(fn):
     url = f"https://api.github.com/repos/{REPO}/contents/data/{fn}"
     r = requests.get(url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
-    return base64.b64decode(r.json()['content']).decode('utf-8').splitlines() if r.status_code == 200 else []
+    if r.status_code == 200:
+        return [l.strip() for l in base64.b64decode(r.json()['content']).decode('utf-8').splitlines() if l.strip()]
+    return []
 
-# 初始化
 if 'db' not in st.session_state:
     st.session_state.db = {k: get_git(v) for k, v in {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt","收藏":"favorites.txt"}.items()}
 if 'pre_tags' not in st.session_state: st.session_state.pre_tags = []
-# 这里的 input_id 是清空输入框的关键
 if 'input_id' not in st.session_state: st.session_state.input_id = 0
 
-# --- 4. 布局 ---
-col_nav, col_mid, col_lib = st.columns([12, 53, 35])
+# --- 4. 稳固布局 ---
+# 这里的比例只是占位，真正的宽度由上面的 CSS 控制
+col_nav, col_mid, col_lib = st.columns([1, 4, 2])
 
-# 👉 左：只放 Logo 和 统计
+# 👉 左侧：统计
 with col_nav:
     st.markdown("### 🌀")
-    stats_html = '<div class="sticky-stats">'
+    st.write("")
+    st.caption("资源统计")
     for k in ["主体", "风格", "部位", "氛围"]:
         num = len(st.session_state.db.get(k, []))
-        stats_html += f'<div class="nav-item"><div class="nav-lbl">{k}</div><div class="nav-val">{num}</div></div>'
-    stats_html += '</div>'
-    st.markdown(stats_html, unsafe_allow_html=True)
+        st.markdown(f'<div class="stat-box"><div style="color:#888;font-size:10px">{k}</div><div class="stat-num">{num}</div></div>', unsafe_allow_html=True)
 
-# 👉 中：输入 + 预览 + 入库
+# 👉 中间：操作
 with col_mid:
     st.title("✨ 智能提取入库")
     
-    # [1] 输入区域：使用动态 Key 实现清空
-    # key=f"in_{st.session_state.input_id}" 每次 input_id +1，输入框就会重置
-    raw_text = st.text_area("输入样板提示词", height=150, placeholder="在此粘贴文本，点击下方拆分...", key=f"in_{st.session_state.input_id}")
+    # 输入框 (动态ID清空)
+    user_input = st.text_area("输入样板提示词", height=150, placeholder="在此输入...", key=f"input_{st.session_state.input_id}")
     
-    # 拆分按钮紧跟输入框
     if st.button("🔍 开始 AI 拆分", type="primary"):
-        if raw_text:
-            with st.spinner("AI 解析中..."):
-                res = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[{"role": "system", "content": "格式:分类:词|分类:词。分类限:主体,风格,部位,氛围。"}, {"role": "user", "content": raw_text}]
-                ).choices[0].message.content
-                st.session_state.pre_tags = [{"cat": p.split(":")[0], "val": p.split(":")[1], "ok": True} for p in res.split("|") if ":" in p]
-                
-                # 关键：拆分成功后，让 ID + 1，下次刷新时输入框就空了
-                st.session_state.input_id += 1 
-                st.rerun()
+        if user_input:
+            with st.spinner("AI 思考中..."):
+                try:
+                    # 强力 Prompt：要求 AI 必须按格式，否则不通过
+                    res = client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[
+                            {"role": "system", "content": "你是一个提取工具。请严格按此格式输出：主体:内容|风格:内容|部位:内容|氛围:内容。若无相关内容则跳过。不要说废话。"},
+                            {"role": "user", "content": user_input}
+                        ],
+                        temperature=0.1
+                    ).choices[0].message.content
+                    
+                    # 容错解析逻辑
+                    parsed = []
+                    # 将换行符也视为分隔符
+                    parts = res.replace("\n", "|").split("|")
+                    for p in parts:
+                        # 兼容中文冒号和英文冒号
+                        p = p.replace("：", ":")
+                        if ":" in p:
+                            k, v = p.split(":", 1)
+                            clean_k = k.strip()
+                            clean_v = v.strip()
+                            # 模糊匹配分类
+                            valid_cat = None
+                            if "主体" in clean_k: valid_cat = "主体"
+                            elif "风格" in clean_k: valid_cat = "风格"
+                            elif "部位" in clean_k: valid_cat = "部位"
+                            elif "氛围" in clean_k: valid_cat = "氛围"
+                            
+                            if valid_cat and clean_v:
+                                parsed.append({"cat": valid_cat, "val": clean_v, "ok": True})
+                    
+                    if parsed:
+                        st.session_state.pre_tags = parsed
+                        st.session_state.input_id += 1 # 清空输入框
+                        st.rerun()
+                    else:
+                        st.error(f"AI返回了内容，但无法识别格式。原始返回：{res}")
+                        
+                except Exception as e:
+                    st.error(f"连接出错: {e}")
 
-    # [2] 结果预览区域 (如果有数据才显示)
+    # 预览与入库区域
     if st.session_state.pre_tags:
-        st.markdown("<div class='preview-box'>", unsafe_allow_html=True)
-        st.subheader("📋 确认拆解结果")
-        st.caption("勾选要保存的标签：")
-        
+        st.write("---")
+        st.subheader("确认拆解结果")
         save_list = []
+        
+        # 遍历显示
         for i, tag in enumerate(st.session_state.pre_tags):
-            if st.checkbox(f"【{tag['cat']}】{tag['val']}", value=True, key=f"t_{i}"):
+            if st.checkbox(f"【{tag['cat']}】{tag['val']}", value=True, key=f"chk_{i}"):
                 save_list.append(tag)
         
-        st.write("---")
-        
-        # 底部按钮栏
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            if st.button("🧹 放弃并清除结果", use_container_width=True):
-                st.session_state.pre_tags = []
-                st.rerun()
+        c1, c2 = st.columns(2)
         with c2:
-            # 这个按钮现在稳稳地在中间栏的右下侧
             if st.button("🚀 一键入云库", type="primary", use_container_width=True):
                 f_map = {"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}
                 for t in save_list:
                     if t['val'] not in st.session_state.db[t['cat']]:
                         st.session_state.db[t['cat']].append(t['val'])
                         sync_git(f_map[t['cat']], st.session_state.db[t['cat']])
-                st.session_state.pre_tags = [] # 入库后清除预览
-                st.success(f"已成功存入 {len(save_list)} 个标签！")
+                st.session_state.pre_tags = []
+                st.success("入库成功！")
                 time.sleep(1)
                 st.rerun()
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+        with c1:
+            if st.button("🧹 放弃", use_container_width=True):
+                st.session_state.pre_tags = []
+                st.rerun()
 
-# 👉 右：资产仓库
+# 👉 右侧：资产库 (使用原生组件确保可见性)
 with col_lib:
-    st.markdown("### 📚 资产仓库")
-    view_cat = st.selectbox("当前查看分类：", ["主体", "风格", "部位", "氛围"], label_visibility="collapsed")
+    st.subheader("📚 资产仓库")
+    
+    # 顶部工具
+    view_cat = st.selectbox("分类", ["主体", "风格", "部位", "氛围"], label_visibility="collapsed")
+    
     st.divider()
     
+    # 强制文字颜色为白色，防止不可见
+    st.markdown('<div style="color:white">', unsafe_allow_html=True)
+    
     items = st.session_state.db.get(view_cat, [])
+    
+    # 调试信息：如果列表为空但统计有数，说明读取有问题
+    if not items and len(st.session_state.db.get(view_cat, [])) > 0:
+         # 强制重新加载一次
+         st.session_state.db[view_cat] = get_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[view_cat])
+         items = st.session_state.db[view_cat]
+
     if items:
         for word in items:
-            c_tag, c_btn1, c_btn2 = st.columns([6, 1, 1])
-            c_tag.markdown(f'<div style="background:#1f1f1f; padding:5px 10px; border-radius:6px; font-size:13px; border:1px solid #333;">{word}</div>', unsafe_allow_html=True)
-            if c_btn1.button("⭐", key=f"fav_{word}"): pass
-            if c_btn2.button("🗑️", key=f"del_{word}"):
-                st.session_state.db[view_cat].remove(word)
-                sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[view_cat], st.session_state.db[view_cat])
-                st.rerun()
+            # 手动布局每一行
+            c_txt, c_act = st.columns([7, 2])
+            with c_txt:
+                st.markdown(f'<div class="repo-item"><span class="repo-text">{word}</span></div>', unsafe_allow_html=True)
+            with c_act:
+                 if st.button("🗑️", key=f"del_{word}"):
+                    st.session_state.db[view_cat].remove(word)
+                    sync_git({"主体":"subjects.txt","风格":"styles.txt","部位":"placements.txt","氛围":"vibes.txt"}[view_cat], st.session_state.db[view_cat])
+                    st.rerun()
     else:
-        st.caption("暂无内容")
+        st.info("暂无数据")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
