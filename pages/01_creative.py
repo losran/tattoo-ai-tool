@@ -192,52 +192,53 @@ with col_main:
             st.session_state.polished_text = "" 
             st.session_state.generated_cache = []
             
-            # 2. 获取最新数据
-            # 确保 WAREHOUSE 的 key 和你 GitHub json 里的 key 是一样的！
+            # 2. 获取数据
             db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
             
             if not any(db_all.values()):
-                st.error("⚠️ 仓库为空，无法组装！")
+                st.error("⚠️ 仓库是空的！")
             else:
                 import random
                 
-                # 🔴🔴🔴 核心修复：定义你的“套餐公式” 🔴🔴🔴
-                # 这里列出你所有的分类 Key，顺序就是生成的顺序。
-                # 比如：先主体，再风格，再构图，再质感...
-                # 请务必确保这里的单词，和你 WAREHOUSE 里的 Key 一模一样！
-                FORMULA_ORDER = [
-                    'subject',      # 1. 主体 (比如：兔子)
-                    'style',        # 2. 风格 (比如：Ignorant)
-                    'composition',  # 3. 构图 (比如：4x4cm)
-                    'texture',      # 4. 质感 (比如：点刺)
-                    'color'         # 5. 颜色 (比如：淡粉)
-                ]
+                # 🔴 配置区：必须锁死的分类 Key (请核对你的 WAREHOUSE)
+                # 必须先抽这俩！
+                MANDATORY_KEYS = ['subject', 'style'] 
                 
-                # 如果你的 key 不叫这些名字，请手动改一下上面的列表 ^^^
-                # 比如你的 key 叫 'elements' 不叫 'subject'，就改成 'elements'
+                # 找出剩下的所有“配菜”分类 (颜色、质感、构图...)
+                # 排除掉那两个必选的，剩下的都可以随机抓
+                SIDE_KEYS = [k for k, v in db_all.items() if k not in MANDATORY_KEYS and v]
 
                 for _ in range(num):
-                    # A. 处理手写输入
-                    raw_input = st.session_state.get('manual_editor', "")
-                    final_tags = raw_input.split() if isinstance(raw_input, str) and raw_input.strip() else []
+                    # A. 存放本次生成的标签
+                    current_tags = []
                     
-                    # B. 按照公式，挨个分类抽一个！
-                    for category in FORMULA_ORDER:
-                        # 只有当这个分类在数据库里存在，且里面有词的时候，才抽
-                        if category in db_all and db_all[category]:
-                            
-                            # --- 🟢 混乱度彩蛋 (可选) ---
-                            # 如果混乱度极低(<20)，可能只保留前3个核心分类(主体+风格+构图)，跳过后面的修饰
-                            if chaos_level < 20 and category in ['texture', 'color']:
-                                continue # 跳过
-                                
-                            # 正常抽取
-                            word = random.choice(db_all[category])
-                            final_tags.append(word)
+                    # B. 第一步：先抽“必选项” (Subject + Style)
+                    for key in MANDATORY_KEYS:
+                        if key in db_all and db_all[key]:
+                            current_tags.append(random.choice(db_all[key]))
                     
-                    # C. 组合结果
-                    # 过滤空值并拼接
-                    unique_tags = list(dict.fromkeys(filter(None, final_tags)))
+                    # C. 第二步：随机叠加“配菜”
+                    if SIDE_KEYS:
+                        # 根据混乱度决定加几个配菜
+                        # 混乱度低：加 2-3 个，保持干净
+                        # 混乱度高：加 5-8 个，如你所愿“随便叠加”
+                        if chaos_level < 30:
+                            extra_count = random.randint(2, 3)
+                        elif chaos_level < 70:
+                            extra_count = random.randint(4, 5)
+                        else:
+                            extra_count = random.randint(6, 9) # 疯狂叠加模式
+                        
+                        for _ in range(extra_count):
+                            # 1. 先随机选一个分类 (比如抽到了“颜色”)
+                            rand_cat = random.choice(SIDE_KEYS)
+                            # 2. 再从这个分类里抽一个词 (比如“荧光绿”)
+                            word = random.choice(db_all[rand_cat])
+                            current_tags.append(word)
+                    
+                    # D. 组合结果
+                    # 去重 (保持顺序)
+                    unique_tags = list(dict.fromkeys(filter(None, current_tags)))
                     combined_p = " + ".join(unique_tags)
                     
                     st.session_state.generated_cache.append(combined_p)
