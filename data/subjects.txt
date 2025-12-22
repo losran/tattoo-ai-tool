@@ -1,4 +1,5 @@
 Naive hand-drawn flash sheet with a large cat
+and stars
 balloon
 bow
 cherry
