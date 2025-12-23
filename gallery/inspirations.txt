@@ -1,8 +1,10 @@
 笔触，抱，minimal color pencil accents (pink风格，淡雅氛围，纹在花枝
-雪花，缠绕，Naive tattoo风格，清新氛围，纹在手部
-gift box，Lying in a long arc，纤细风格，清新氛围，纹在手腕内侧
-对半切开的迷你舒芙蕾，趴卧，Q版卡通风格，圣诞氛围，纹在手臂
 兔子，蓬松开散，圆钝风格，温柔氛围，纹在锁骨
 Naive hand-drawn flash sheet with a large cat
+"风格": "日式极简，色块清晰",
 奶油白色铃兰花（花瓣边缘浅绿色渐变），切开，无粗轮廓线风格，软萌氛围，纹在花枝
 星芒曲线，贴合，Q版卡通风格，干净氛围，纹在耳后
+对半切开的迷你舒芙蕾，趴卧，Q版卡通风格，圣诞氛围，纹在手臂
+},
+雪花，缠绕，Naive tattoo风格，清新氛围，纹在手部
+gift box，Lying in a long arc，纤细风格，清新氛围，纹在手腕内侧
