@@ -127,13 +127,17 @@ with col_main:
 
 if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
         db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-        with st.spinner("AI 挑词中..."):
+        with st.spinner("AI 精准挑词中..."):
             new_batch = []
             for _ in range(num):
-                # ... (抽词逻辑保持不变) ...
+                s = smart_sample_with_ai("Subject", intent_input, db_all["Subject"])
+                a = smart_sample_with_ai("Action", intent_input, db_all["Action"])
+                st_val = smart_sample_with_ai("Style", intent_input, db_all["Style"])
+                m = smart_sample_with_ai("Mood", intent_input, db_all["Mood"])
+                u = smart_sample_with_ai("Usage", intent_input, db_all["Usage"])
                 new_batch.append(f"{s}，{a}，{st_val}风格，{m}氛围，纹在{u}")
             
-            # 💡 这里只更新生成的缓存，先不写 history_log
+            # 💡 核心：只更新中间，历史区保持不动
             st.session_state.generated_cache = new_batch 
         st.rerun()
 
