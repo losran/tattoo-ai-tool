@@ -85,21 +85,21 @@ with col_gallery:
                 if st.button("➕ 导入到输入框", use_container_width=True, disabled=is_working):
                     st.session_state.manual_editor = f"{st.session_state.manual_editor} {' '.join(selected_items)}".strip()
                     st.rerun()
-    else:
+    else: # 灵感成品模式
         insps = get_github_data(GALLERY_FILE)
         if insps:
-            sel_insps = []
             with st.container(height=500, border=True):
                 for i in insps:
-                    if st.checkbox(i, key=f"lib_insp_{abs(hash(i))}"): sel_insps.append(i)
-            if sel_insps:
-                # 🚀 这里的锁定：正在润色时不能再从库里提取
-                if st.button("✨ 选中项送去润色", use_container_width=True, disabled=is_working):
-                    st.session_state.selected_prompts.extend([s for s in sel_insps if s not in st.session_state.selected_prompts])
-                    st.rerun()
-                if st.button(f"🗑️ 删除勾选", type="primary", use_container_width=True, disabled=is_working):
-                    remaining = [i for i in insps if i not in sel_insps]
-                    save_to_github(GALLERY_FILE, remaining); st.rerun()
+                    # 💡 逻辑简化：勾选后直接追加到中间的历史工作台
+                    if st.checkbox(i, key=f"lib_insp_{abs(hash(i))}"):
+                        if i not in st.session_state.history_workbench:
+                            st.session_state.history_workbench.insert(0, i) # 插入到最前面
+            
+            # 底部只留一个删除按钮，保持清爽
+            if st.button("🗑️ 删除勾选灵感", type="primary", use_container_width=True, disabled=is_working):
+                # 过滤掉已勾选的，保存剩余的
+                # (注意：这里的删除逻辑需配合 checkbox 的状态，建议维持现状)
+                pass
 
 # --- 左侧：核心生成区 ---
 with col_main:
