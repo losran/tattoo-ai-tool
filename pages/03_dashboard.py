@@ -2,9 +2,10 @@ import streamlit as st
 import json
 import os
 import pandas as pd
+from openai import OpenAI
 
-# --- 1. 配置与数据地基 ---
-st.set_page_config(layout="wide", page_title="仓库权重中控台")
+# --- 1. 数据地基 (后台逻辑) ---
+st.set_page_config(layout="wide", page_title="后台数据中控")
 
 JSON_DB_PATH = "data/creative_db.json"
 WAREHOUSE_CONFIG = {
@@ -15,19 +16,19 @@ WAREHOUSE_CONFIG = {
     "Usage": "data/usage.txt"
 }
 
-# --- 修改 load_db 的返回结构 ---
 def load_db():
     if os.path.exists(JSON_DB_PATH):
         with open(JSON_DB_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # 补齐字段
+            # 自动补全结构
+            if "words" not in data: data = {"words": {cat: [] for cat in WAREHOUSE_CONFIG.keys()}, "templates": {}, "prompts": {}}
             if "prompts" not in data:
                 data["prompts"] = {
                     "tagger_system": "你是一个纹身审美专家。请分析词汇的视觉调性。",
-                    "tagger_user": "分析词汇: '{word}'\n1. 调性(vibe): 从[cute, healing, dark, hardcore, minimalist, cyberpunk, geometric]选一个最贴切的。\n2. 人群(target): 从[male, female, unisex]选一个。\n只返回JSON: {'vibe': 'xxx', 'target': 'xxx'}"
+                    "tagger_user": "分析词汇: '{word}'\n只返回JSON: {'vibe': 'xxx', 'target': 'xxx'}"
                 }
             return data
-    return {"words": {}, "templates": {}, "prompts": {}}
+    return {"words": {cat: [] for cat in WAREHOUSE_CONFIG.keys()}, "templates": {}, "prompts": {}}
 
 def save_db(data):
     os.makedirs("data", exist_ok=True)
@@ -36,133 +37,82 @@ def save_db(data):
 
 db = load_db()
 
-st.title("🎮 仓库权重中控台")
-
-# --- 2. 搬家工具 (点击此处修复 KeyError) ---
-with st.expander("🛠️ 修复与初始化：将 TXT 导入新版 JSON", expanded=True):
-    st.warning("如果你看到 KeyError 报错，请点击下方按钮重新初始化。")
-    if st.button("🚀 执行初始化/数据修复"):
-        
-        new_db = {
-            "words": {cat: [] for cat in WAREHOUSE_CONFIG.keys()},
-            "templates": {"少女心系列 (Sell_to_girls)": {"pref_vibe": ["healing", "cute"], "pref_target": ["female"], "boost": 6.0}}
-        }
-        for cat, path in WAREHOUSE_CONFIG.items():
-            if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
-                    lines = [l.strip() for l in f if l.strip()]
-                    new_db["words"][cat] = [{"val": l, "weight_bonus": 1.0, "tags": {"vibe": "general", "target": "all"}} for l in lines]
-        save_db(new_db)
-        st.success("数据已成功升级为新格式！")
-        st.rerun()
-
-# --- 定位：在“执行初始化/数据修复”按钮的 if 逻辑结束后插入 ---
-st.divider()
-st.subheader("🤖 AI 自动语义洗标")
-st.caption("让 AI 扫描全库，自动根据词义填充调性标签（vibe）和人群倾向（target）")
-
-if st.button("🪄 启动 AI 一键全量打标", type="secondary", use_container_width=True):
-    from openai import OpenAI
-    # 1. 初始化 AI 客户端
-    ai_client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
+# --- 2. 侧边栏：收纳所有“格格不入”的工具 ---
+with st.sidebar:
+    st.title("⚙️ 后台专家设置")
     
-    with st.spinner("AI 正在根据自定义咒语解析词库... 请稍候..."):
-        db = load_db()
-        
-        # 2. 💡 读取在“🔮 AI 咒语调教”面板中保存的自定义咒语
-        # 如果数据库里还没存过咒语，则使用默认值作为兜底
-        prompt_config = db.get("prompts", {})
-        sys_prompt = prompt_config.get("tagger_system", "你是一个纹身审美专家。请分析词汇的视觉调性。")
-        user_prompt_tpl = prompt_config.get("tagger_user", "分析词汇: '{word}'\n只返回JSON格式。")
+    with st.expander("🔮 AI 灵魂咒语调教"):
+        db["prompts"]["tagger_system"] = st.text_area("系统人格设定", value=db["prompts"]["tagger_system"])
+        db["prompts"]["tagger_user"] = st.text_area("分类规则 (须保留 {word})", value=db["prompts"]["tagger_user"], height=200)
+        if st.button("💾 保存咒语"):
+            save_db(db)
+            st.success("咒语已同步")
 
-        words_structure = db.get("words", {})
-        count = 0
+    with st.expander("🎯 模板与权重加成管理"):
+        tpl_data = db.get("templates", {})
+        tpl_df = pd.DataFrame([{"名称": k, "倍率": v['boost'], "标签": ",".join(v['pref_vibe'])} for k, v in tpl_data.items()])
+        ed_tpl = st.data_editor(tpl_df, num_rows="dynamic")
+        if st.button("🚀 同步模板"):
+            db["templates"] = {r["名称"]: {"boost": r["倍率"], "pref_vibe": [i.strip() for i in str(r["标签"]).split(",") if i.strip()], "pref_target": ["all"]} for _, r in ed_tpl.iterrows()}
+            save_db(db)
+            st.rerun()
+
+    with st.expander("⚠️ 系统初始化/修复"):
+        if st.button("从旧 TXT 重新搬家"):
+            for cat, path in WAREHOUSE_CONFIG.items():
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        lines = [l.strip() for l in f if l.strip()]
+                        db["words"][cat] = [{"val": l, "weight_bonus": 1.0, "tags": {"vibe": "general", "target": "all"}} for l in lines]
+            save_db(db)
+            st.success("搬家完成")
+
+# --- 3. 主页面：极简词库管理 ---
+st.title("🏷️ 素材仓库管理")
+
+tab_words = st.container()
+with tab_words:
+    cat = st.selectbox("当前维度", list(WAREHOUSE_CONFIG.keys()))
+    words_list = db["words"].get(cat, [])
+    
+    # 构建表格
+    df = pd.DataFrame([{"词汇": i["val"], "权重": i["weight_bonus"], "调性": i["tags"].get("vibe", "general")} for i in words_list])
+    
+    edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
+
+    if st.button(f"💾 保存修改并自动打标", type="primary"):
+        # 还原数据
+        new_words = []
+        needs_tagging = []
         
-        for cat, items in words_structure.items():
-            for item in items:
-                # 只对还是 general 的词进行处理，或者你可以取消这个判断实现全量重洗
-                if item["tags"].get("vibe") == "general":
-                    word = item["val"]
-                    
-                    # 3. 💡 动态注入：将咒语模板中的 {word} 替换为当前词汇
-                    final_user_prompt = user_prompt_tpl.replace("{word}", word)
-                    
+        for _, row in edited_df.iterrows():
+            item = {
+                "val": row["词汇"], 
+                "weight_bonus": float(row["权重"]), 
+                "tags": {"vibe": row["调性"], "target": "all"}
+            }
+            new_words.append(item)
+            # 如果是新加的词或是默认标签，加入待洗标名单
+            if row["调性"] == "general":
+                needs_tagging.append(item)
+        
+        db["words"][cat] = new_words
+        
+        # 静默打标
+        if needs_tagging:
+            ai_client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
+            with st.status(f"正在为 {len(needs_tagging)} 个新词进行 AI 审美分类...", expanded=False):
+                for item in needs_tagging:
+                    prompt = db["prompts"]["tagger_user"].replace("{word}", item["val"])
                     try:
-                        response = ai_client.chat.completions.create(
+                        res = ai_client.chat.completions.create(
                             model="deepseek-chat",
-                            messages=[
-                                {"role": "system", "content": sys_prompt},
-                                {"role": "user", "content": final_user_prompt}
-                            ],
+                            messages=[{"role": "system", "content": db["prompts"]["tagger_system"]}, {"role": "user", "content": prompt}],
                             response_format={ 'type': 'json_object' }
                         )
-                        # 解析 AI 返回的结果
-                        new_tags = json.loads(response.choices[0].message.content)
-                        
-                        # 4. 更新数据库中的标签
-                        item["tags"].update(new_tags)
-                        count += 1
-                        
-                        # 可选：打印进度，防止在大库运行时以为卡死
-                        if count % 10 == 0:
-                            st.write(f"已洗标... {count} 个词汇")
-                            
-                    except Exception as e:
-                        st.warning(f"处理词汇 '{word}' 时出错: {e}")
-                        continue
+                        item["tags"].update(json.loads(res.choices[0].message.content))
+                    except: continue
         
-        # 5. 保存并刷新
         save_db(db)
-        st.success(f"✅ AI 进化完成！已采用自定义咒语更新 {count} 个词汇。")
+        st.success("修改已保存，后台已自动完成分类！")
         st.rerun()
-
-# --- 修改 Tab 定义 ---
-tab_words, tab_templates, tab_prompts = st.tabs(["🏷️ 词库与权重调控", "🎯 意图模板配置", "🔮 AI 咒语调教"])
-
-with tab_prompts:
-    st.subheader("🔮 AI 自动洗标咒语配置")
-    st.caption("在这里修改 AI 识别标签时的逻辑，无需改动 GitHub 代码。")
-    
-    # 动态编辑咒语
-    new_sys = st.text_area("系统人格设定 (System Prompt)", value=db["prompts"]["tagger_system"], height=100)
-    new_user = st.text_area("分类规则指令 (User Prompt)", value=db["prompts"]["tagger_user"], height=200, help="注意：必须保留 {word} 占位符")
-    
-    if st.button("💾 保存咒语配置"):
-        db["prompts"]["tagger_system"] = new_sys
-        db["prompts"]["tagger_user"] = new_user
-        save_db(db)
-        st.success("咒语已更新，下次‘一键洗标’将采用新规则！")
-
-with tab_templates:
-    # --- 定位：替换 with tab_templates: 内部的所有内容 ---
-
-    st.subheader("🎯 意图模板可视化调控")
-    
-    # 获取现有模板
-    tpl_data = db.get("templates", {})
-    
-    # 格式化成表格，方便你编辑
-    tpl_rows = []
-    for name, cfg in tpl_data.items():
-        tpl_rows.append({
-            "模板名称": name,
-            "偏好标签(用逗号隔开)": ",".join(cfg.get("pref_vibe", [])),
-            "权重放大倍率": cfg.get("boost", 1.0)
-        })
-    
-    df_tpl = pd.DataFrame(tpl_rows)
-    
-    # 💡 在这里直接改、直接加行，就是加模板！
-    edited_tpl = st.data_editor(df_tpl, num_rows="dynamic", use_container_width=True)
-    
-    if st.button("🚀 确认并同步模板配置", type="primary"):
-        new_templates = {}
-        for _, row in edited_tpl.iterrows():
-            new_templates[row["模板名称"]] = {
-                "pref_vibe": [i.strip() for i in str(row["偏好标签(用逗号隔开)"]).split(",") if i.strip()],
-                "pref_target": ["unisex"], # 默认中性
-                "boost": float(row["权重放大倍率"])
-            }
-        db["templates"] = new_templates
-        save_db(db)
-        st.success("配置已同步！去创意引擎看看下拉框吧。")
