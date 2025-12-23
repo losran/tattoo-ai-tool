@@ -112,59 +112,70 @@ with col_gallery:
 
 # --- 🔵 左侧：核心生成区 ---
 with col_main:
+    # 1. 双轨控制器：审美流派 + 混乱脑洞
     col_cfg1, col_cfg2 = st.columns(2)
-    with col_cfg1: num = st.slider("生成方案数量", 1, 10, 6)
-    with col_cfg2: chaos_level = st.slider("🎨 审美光谱", 0, 100, 55)
-    
-    intent_input = st.text_area("✍️ 组合意图输入框", value=st.session_state.manual_editor, disabled=is_working)
+    with col_cfg1:
+        # 0可爱, 30水彩, 60日式, 100欧美
+        style_spectrum = st.slider("🎨 审美光谱 (流派方向)", 0, 100, 55, help="0:可爱柔美 | 30:轻盈水彩 | 60:浓重日式 | 100:硬朗极简")
+    with col_cfg2:
+        chaos_level = st.slider("🌀 混乱程度 (创意脑洞)", 0, 100, 30, help="值越高，AI越倾向于超现实的、出人意料的意象碰撞")
+
+    intent_input = st.text_area("✍️ 组合意图输入框", value=st.session_state.manual_editor, placeholder="输入核心关键词，如：宇航员、玫瑰...", disabled=is_working)
     st.session_state.manual_editor = intent_input
 
-# 💡 极速激发逻辑：基于混乱度的动态生成
-    if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
-        db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-        
-        # 核心改进：根据混乱度调整“抽样数”和“AI随机温控”
-        # 混乱度越高，给 AI 的词库参考越多，AI 越容易产生奇妙碰撞
-        sample_size = int(15 + (chaos_level / 100) * 20) 
-        sample_db = {k: random.sample(v, min(len(v), sample_size)) for k, v in db_all.items()}
-        
-        # 混乱度越高，Temperature 越高，AI 越“敢想”
-        dynamic_temp = 0.5 + (chaos_level / 100) * 0.45 # 范围 0.5 - 0.95
-        
-        with st.spinner(f"AI 正在以 {chaos_level}% 混乱度匹配最优组合..."):
-            # 2. 构造具有“灵魂”的 Prompt
-            fast_prompt = f"""
-            你是一位拥有顶级审美的纹身艺术策展人。
-            用户意图：{intent_input}
-            审美光谱（混乱度）：{chaos_level}/100 
-            （注：混乱度低则追求经典平衡，混乱度高则追求意象碰撞与超现实感）
-
-            【待调配词库】：
-            {sample_db}
-
-            任务：基于词库素材，产出 {num} 个极具视觉冲击力的纹身方案。
-
-            【创作指令】：
-            1. 核心映射：必须紧扣用户意图，从词库提取最契合的主体。
-            2. 灵活扩散：如果混乱度高，允许你基于词库词汇进行“美学联想”，不要机械套用。
-            3. 结构要求：每个方案包含（主体、动作、风格、氛围、部位）。
+    # 2. 按钮行：数量选择 + 激发按钮
+    col_btn_l, col_btn_r = st.columns([1, 4]) # 1:4 的比例，让按钮占主体
+    with col_btn_l:
+        num = st.number_input("数量", 1, 10, 6, label_visibility="collapsed") # 隐藏标签更整洁
+    with col_btn_r:
+        btn_label = "🔥 激发创意组合"
+        if st.button(btn_label, type="primary", use_container_width=True, disabled=is_working):
+            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
             
-            只返回方案列表，严禁解释，每行一个。
-            格式：主体，动作，风格，氛围，部位
-            """
-            
-            try:
-                res = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[{"role": "user", "content": fast_prompt}],
-                    temperature=dynamic_temp # 使用动态温度
-                )
-                raw_list = res.choices[0].message.content.strip().split('\n')
-                st.session_state.generated_cache = [line.strip() for line in raw_list if "，" in line][:num]
-                st.rerun()
-            except Exception as e:
-                st.error(f"激发超时，请重试: {e}")
+            # --- A. 根据“审美光谱”确定视觉DNA ---
+            if style_spectrum <= 15:
+                style_dna = "风格：可爱柔美、治愈系。特点：线条圆滑、意象温馨、拒绝硬色调。"
+            elif style_spectrum <= 45:
+                style_dna = "风格：现代水彩插画。特点：灵动晕染、光影虚实结合、意象轻盈。"
+            elif style_spectrum <= 80:
+                style_dna = "风格：日式传统/Old School。特点：粗黑线条、对比色强烈、构图饱满张扬。"
+            else:
+                style_dna = "风格：欧美极简主义。特点：硬朗直线、几何解构、高度概括、冷峻感。"
 
+            # --- B. 根据“混乱程度”决定AI随机性 ---
+            # 脑洞越大，Temperature越高，抽词范围越广
+            dynamic_temp = 0.4 + (chaos_level / 100) * 0.55 
+            sample_size = int(15 + (chaos_level / 100) * 20)
+
+            with st.spinner(f"正在以 {chaos_level}% 脑洞碰撞创意..."):
+                sample_db = {k: random.sample(v, min(len(v), sample_size)) for k, v in db_all.items()}
+                
+                fast_prompt = f"""
+                你是一位跨界纹身艺术大师。
+                意图：{intent_input}
+                视觉流派锁定：{style_dna}
+                创意发散度：{chaos_level}/100（混乱度高则允许超现实、荒诞的组合）
+
+                任务：基于意图并参考词库，生成 {num} 个方案。
+                要求：
+                1. 线条感和视觉意象必须符合上述“视觉流派”描述。
+                2. 方案格式：主体，动作，风格，氛围，部位
+                3. 直接返回结果，每行一个，禁止废话。
+                词库参考：{sample_db}
+                """
+                
+                try:
+                    res = client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[{"role": "user", "content": fast_prompt}],
+                        temperature=dynamic_temp
+                    )
+                    raw_list = res.choices[0].message.content.strip().split('\n')
+                    st.session_state.generated_cache = [line.strip() for line in raw_list if "，" in line][:num]
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"激发失败: {e}")
+                    
     # 🎲 方案筛选 (中间桌面)
     if st.session_state.generated_cache:
         st.divider()
