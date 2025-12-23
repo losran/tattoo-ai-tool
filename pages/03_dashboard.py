@@ -63,44 +63,57 @@ st.caption("让 AI 扫描全库，自动根据词义填充调性标签（vibe）
 
 if st.button("🪄 启动 AI 一键全量打标", type="secondary", use_container_width=True):
     from openai import OpenAI
-    # 初始化客户端 (确保 secrets 里有 key)
+    # 1. 初始化 AI 客户端
     ai_client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
     
-    with st.spinner("AI 正在解析词库灵魂... 请稍候..."):
+    with st.spinner("AI 正在根据自定义咒语解析词库... 请稍候..."):
         db = load_db()
+        
+        # 2. 💡 读取在“🔮 AI 咒语调教”面板中保存的自定义咒语
+        # 如果数据库里还没存过咒语，则使用默认值作为兜底
+        prompt_config = db.get("prompts", {})
+        sys_prompt = prompt_config.get("tagger_system", "你是一个纹身审美专家。请分析词汇的视觉调性。")
+        user_prompt_tpl = prompt_config.get("tagger_user", "分析词汇: '{word}'\n只返回JSON格式。")
+
         words_structure = db.get("words", {})
         count = 0
         
         for cat, items in words_structure.items():
             for item in items:
-                # 只对还是 general 的词进行处理，避免浪费次数
+                # 只对还是 general 的词进行处理，或者你可以取消这个判断实现全量重洗
                 if item["tags"].get("vibe") == "general":
                     word = item["val"]
                     
-                    # 💡 这是调教 AI 的核心咒语
-                    sys_prompt = "你是一个纹身审美专家。请分析词汇的视觉调性。"
-                    user_prompt = f"""分析词汇: '{word}'
-                    1. 调性(vibe): 从[cute, healing, dark, hardcore, minimalist, cyberpunk, geometric]选一个最贴切的。
-                    2. 人群(target): 从[male, female, unisex]选一个。
-                    只返回JSON: {{"vibe": "xxx", "target": "xxx"}}"""
+                    # 3. 💡 动态注入：将咒语模板中的 {word} 替换为当前词汇
+                    final_user_prompt = user_prompt_tpl.replace("{word}", word)
                     
                     try:
                         response = ai_client.chat.completions.create(
                             model="deepseek-chat",
                             messages=[
                                 {"role": "system", "content": sys_prompt},
-                                {"role": "user", "content": user_prompt}
+                                {"role": "user", "content": final_user_prompt}
                             ],
                             response_format={ 'type': 'json_object' }
                         )
+                        # 解析 AI 返回的结果
                         new_tags = json.loads(response.choices[0].message.content)
+                        
+                        # 4. 更新数据库中的标签
                         item["tags"].update(new_tags)
                         count += 1
+                        
+                        # 可选：打印进度，防止在大库运行时以为卡死
+                        if count % 10 == 0:
+                            st.write(f"已洗标... {count} 个词汇")
+                            
                     except Exception as e:
+                        st.warning(f"处理词汇 '{word}' 时出错: {e}")
                         continue
         
+        # 5. 保存并刷新
         save_db(db)
-        st.success(f"✅ AI 进化完成！已自动识别并更新 {count} 个词汇的标签。")
+        st.success(f"✅ AI 进化完成！已采用自定义咒语更新 {count} 个词汇。")
         st.rerun()
 
 # --- 修改 Tab 定义 ---
