@@ -133,89 +133,40 @@ with col_gallery:
 
 # --- 🔵 左侧：核心生成区 ---
 with col_main:
-    col_cfg1, col_cfg2 = st.columns(2)
-    
-    with col_cfg1:
-        # 替换原本的 slider，使用语义化滑块
-        style_label = st.select_slider(
-            "🎨 艺术风格流派",
-            options=["可爱柔美", "轻盈水彩", "日式传统", "欧美极简"],
-            value="日式传统",
-            help="左滑更感性治愈，右滑更理性硬朗"
-        )
-        
-        # 将文字标签映射回原本的逻辑数值，不破坏你后端的判断
-        style_mapping = {
-            "可爱柔美": 10,
-            "轻盈水彩": 35,
-            "日式传统": 70,
-            "欧美极简": 100
-        }
-        style_spectrum = style_mapping[style_label]
+    # 1. 风格调性：使用分段选择器（比下拉栏更好看，一目了然）
+    style_tone = st.radio(
+        "🎭 风格调性",
+        options=["自由盲盒", "可爱柔美", "轻盈水彩", "日式传统", "欧美极简"],
+        horizontal=True,
+        help="选择'自由盲盒'将完全随机生成，不锁定任何风格倾向"
+    )
 
-    with col_cfg2:
-        # 混乱度保留为进度条，但改名并增加视觉反馈
-        chaos_level = st.select_slider(
-            "🌀 创意碰撞强度 (脑洞)",
-            options=["严谨", "稳健", "均衡", "发散", "疯狂"],
-            value="均衡"
-        )
-        chaos_mapping = {"严谨": 10, "稳健": 30, "均衡": 50, "发散": 75, "疯狂": 100}
-        chaos_val = chaos_mapping[chaos_level]
+    # 2. 混乱程度：保留但作为“脑洞系数”
+    chaos_val = st.select_slider(
+        "🌀 创意碰撞 (混乱度)",
+        options=["严谨", "均衡", "疯狂"],
+        value="均衡"
+    )
 
-# 2. 按钮行：数量选择 + 激发按钮
-    col_btn_l, col_btn_r = st.columns([1, 4])
-    with col_btn_l:
+    intent_input = st.text_area("✍️ 组合意图输入框", placeholder="输入你想画的内容，留空则完全随机...")
+
+    # 3. 数量与按钮组合
+    col_n, col_b = st.columns([1, 4])
+    with col_n:
         num = st.number_input("数量", 1, 10, 6, label_visibility="collapsed")
-    with col_btn_r:
-        if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
-            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
+    with col_b:
+        if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
+            # --- 执行融合逻辑 ---
+            # 判断是否是盲盒模式
+            is_blind_box = (style_tone == "自由盲盒")
             
-            with st.spinner("AI 正在深度调配词库..."):
-                # --- 🟢 核心改动：判断是否有输入意图 ---
-                smart_sample_db = {}
-                has_intent = bool(intent_input.strip())
-                
-                for k, v in db_all.items():
-                    if has_intent:
-                        # 模式 A：意图驱动。混乱度越高，越允许混入随机词
-                        ai_choice_count = int(15 * (1 - chaos_level/200)) # 混乱度高，AI选词少点
-                        rand_choice_count = 15 - ai_choice_count
-                        
-                        ai_words = ai_pre_filter(k, intent_input, v, limit=ai_choice_count)
-                        rand_words = random.sample(v, min(len(v), rand_choice_count))
-                        smart_sample_db[k] = list(set(ai_words + rand_words))
-                    else:
-                        # 模式 B：纯随机抽样。根据混乱度决定抽样池大小
-                        sample_size = int(15 + (chaos_level / 100) * 20)
-                        smart_sample_db[k] = random.sample(v, min(len(v), sample_size))
+            # 构造融合指令
+            if is_blind_box:
+                style_instruction = "不限风格，请在词库中大胆跨界碰撞，追求极致的随机惊喜。"
+            else:
+                style_instruction = f"强制要求将用户意图与【{style_tone}】风格进行深度融合。即使意图与之冲突，也要创作出具有该风格特征的变形设计。"
 
-                # --- 风格 DNA 判定 ---
-                if style_spectrum <= 15: dna = "风格：可爱柔美。"
-                elif style_spectrum <= 45: dna = "风格：水彩写意。"
-                elif style_spectrum <= 80: dna = "风格：日式传统。"
-                else: dna = "风格：欧美极简。"
-
-                # --- 执行生成 ---
-                dynamic_temp = 0.4 + (chaos_level / 100) * 0.55
-                fast_prompt = f"""
-                意图：{intent_input if has_intent else '自由发挥'}
-                风格锁定：{dna}
-                参考词库：{smart_sample_db}
-                任务：生成 {num} 个方案（主体，动作，风格，氛围，部位）。
-                """
-                
-                try:
-                    res = client.chat.completions.create(
-                        model="deepseek-chat",
-                        messages=[{"role": "user", "content": fast_prompt}],
-                        temperature=dynamic_temp
-                    )
-                    raw_list = res.choices[0].message.content.strip().split('\n')
-                    st.session_state.generated_cache = [line.strip() for line in raw_list if "，" in line][:num]
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"生成失败: {e}")
+            # ... 后续 AI 生成逻辑 ...
                     
     # 🎲 方案筛选 (中间桌面)
     if st.session_state.generated_cache:
