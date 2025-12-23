@@ -196,53 +196,64 @@ with col_main:
                 st.session_state.generated_cache = []; st.session_state.selected_prompts = []
                 st.rerun()
 
-# --- 🔵 精准加固后的润色逻辑 ---
-    if st.session_state.selected_prompts and not st.session_state.polished_text:
-        st.divider()
-        if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
-            # 1. 强制归档：将生成的 cache 中未选中的方案移入 history_log
-            try:
-                if 'generated_cache' in st.session_state and st.session_state.generated_cache:
-                    abandoned = [p for p in st.session_state.generated_cache if p not in st.session_state.selected_prompts]
-                    if abandoned:
-                        # 确保 history_log 是列表并追加
-                        if not isinstance(st.session_state.history_log, list):
-                            st.session_state.history_log = []
-                        st.session_state.history_log = abandoned + st.session_state.history_log
-                    
-                    # 清空当前展示，完成“迁移”视觉效果
-                    st.session_state.generated_cache = []
-            except Exception as e:
-                st.error(f"归档过程出错: {e}")
+# --- 🔵 润色逻辑：基于风格调性与意图融合 ---
+if st.session_state.selected_prompts and not st.session_state.polished_text:
+    st.divider()
+    if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
+        
+        # 1. 自动归档：把没选中的方案丢进历史
+        if st.session_state.generated_cache:
+            abandoned = [p for p in st.session_state.generated_cache if p not in st.session_state.selected_prompts]
+            if abandoned:
+                st.session_state.history_log = abandoned + st.session_state.history_log
+            st.session_state.generated_cache = []
 
-            # 2. 执行润色
-            with st.spinner("AI 注入灵魂中..."):
-                try:
-                    # 构造纯净的输入文本
-                    input_text = "\n".join([f"方案{idx+1}: {p}" for idx, p in enumerate(st.session_state.selected_prompts)])
-                    
-                    # 审美光谱映射
-                    if chaos_level <= 35: v, f, n = "可爱治愈", "软萌圆润", "陪伴"
-                    elif chaos_level <= 75: v, f, n = "日式传统", "黑线重彩", "沉淀"
-                    else: v, f, n = "欧美极简", "力量解构", "破局"
-                    
-                    sys_p = f"你是一位资深刺青策展人。风格基调：{v}。请将方案润色为极具艺术感的纹身描述。"
-                    
-                    response = client.chat.completions.create(
-                        model="deepseek-chat",
-                        messages=[
-                            {"role": "system", "content": sys_p},
-                            {"role": "user", "content": input_text}
-                        ],
-                        temperature=0.7,
-                        timeout=30 # 增加超时保护
-                    )
-                    
-                    st.session_state.polished_text = response.choices[0].message.content
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"润色失败原因: {e}")
-                    # 如果失败了，建议不要清空 generated_cache，让用户可以重试
+        # 2. 执行润色
+        with st.spinner("AI 正在注入艺术灵魂..."):
+            try:
+                # 构造输入
+                input_text = "\n".join([f"方案{idx+1}: {p}" for idx, p in enumerate(st.session_state.selected_prompts)])
+                
+                # --- 核心：风格调性映射 (替换掉原来的 chaos_level 判断) ---
+                # style_tone 是我们刚才设定的 st.radio 的值
+                if style_tone == "可爱柔美":
+                    v, f, n = "可爱治愈", "线条圆润、色彩清新、充满软萌感", "陪伴与温暖"
+                elif style_tone == "轻盈水彩":
+                    v, f, n = "插画水彩", "光影斑驳、虚实结合、边缘柔和", "灵动与自由"
+                elif style_tone == "日式传统":
+                    v, f, n = "日式 Old School", "重彩黑线、张力十足、极具东方韵味", "力量与宿命"
+                elif style_tone == "欧美极简":
+                    v, f, n = "欧美极简线条", "几何解构、冷峻利落、拒绝冗余", "破局与纯粹"
+                else: # 自由盲盒
+                    v, f, n = "前卫艺术", "跨界碰撞、不拘一格、充满意外惊喜", "自我表达"
+
+                # 构造系统提示词：要求 AI 融合用户的意图
+                sys_p = f"""你是一位刺青策展大师。
+                当前艺术调性：{v}。
+                视觉特征要求：{f}。
+                情感基调：{n}。
+                
+                【核心任务】：
+                请将用户选中的方案润色为极具艺术感的纹身描述。
+                如果原始方案与调性存在反差（如：日式主题遇到可爱调性），
+                请发挥想象力，创作出一种“反差萌”或“跨界风格”的文学描述。
+                每条描述字数适中，包含视觉细节。"""
+                
+                response = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": sys_p},
+                        {"role": "user", "content": f"用户初始意图：{intent_input}\n\n待润色方案：\n{input_text}"}
+                    ],
+                    temperature=0.7,
+                    timeout=30
+                )
+                
+                st.session_state.polished_text = response.choices[0].message.content
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"润色失败: {e}")
 
     if st.session_state.polished_text:
         st.divider(); st.subheader("🎨 艺术润色成品")
