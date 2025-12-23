@@ -165,7 +165,7 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
                 
                 # 核心指令：纯中文处理，仅修饰语境
                 system_instruction = f"""
-                你正在为【纹身贴（Tattoo Sticker）】整理可直接用于生产与展示的图形描述。
+                你正在为纹身师整理【可直接用于落皮的刺青设计描述】。
                 
                 【核心任务】：
                 将用户给出的中文关键词，重组为一条【信息密度充足、结构完整、具备明确刺青语言】的中文描述。
