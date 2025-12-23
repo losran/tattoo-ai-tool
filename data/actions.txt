@@ -73,6 +73,7 @@ loosely scattered arrangement
 躺平
 追剧
 适配
+重叠
 镜像
 镜像对称
 附着
