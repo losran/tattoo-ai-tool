@@ -1,13 +1,30 @@
 import streamlit as st
-from style_manager import apply_pro_style
-import requests, base64, random, time, json, urllib.parse
-from openai import OpenAI
-# --- 定位：在文件开头附近，import 语句之后插入 ---
 import json
 import os
 import random
 import numpy as np
+from style_manager import apply_pro_style
 
+# 1. 📍 顶部：定义模板账本 (必须在函数外面，方便全局调用)
+INTENT_PREFERENCES = {
+    "少女心系列 (Sell_to_girls)": {
+        "preferred_vibe": ["cute", "healing", "minimalist", "治愈", "简约"],
+        "preferred_target": ["female", "unisex"],
+        "boost_factor": 5.0 
+    },
+    "硬核极客版 (Hardcore_Male)": {
+        "preferred_vibe": ["cyberpunk", "dark", "hardcore", "赛博朋克", "冷酷"],
+        "preferred_target": ["male", "unisex"],
+        "boost_factor": 5.0
+    },
+    "完全随机模式": {
+        "preferred_vibe": [],
+        "preferred_target": [],
+        "boost_factor": 1.0
+    }
+}
+
+# 2. 📍 核心：读取JSON函数 (确保左对齐，不缩进)
 def load_json_db():
     """从新地基加载数据"""
     path = "data/creative_db.json"
@@ -15,42 +32,40 @@ def load_json_db():
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {}
-    def weighted_sample(category, template_config):
-    """
-    category: 分类名 (如 'Subject')
-    template_config: 当前选中的意图模板配置
-    """
+
+# 3. 📍 核心：聪明采样函数 (确保左对齐，不缩进)
+def smart_sample(category, template_name):
+    """根据模板名和分类，从JSON里聪明抽词"""
     db = load_json_db()
     items = db.get(category, [])
     
     if not items:
         return "空词库"
 
+    # 获取模板配置
+    pref = INTENT_PREFERENCES.get(template_name, INTENT_PREFERENCES["完全随机模式"])
+    
     choices = []
     weights = []
 
     for item in items:
         word = item['val']
-        # 基础权重，默认 1.0
-        score = item.get('weight_bonus', 1.0)
+        # 基础分：来自你在 Dashboard 手动填写的权重
+        score = float(item.get('weight_bonus', 1.0))
         
-        # 获取该词在 JSON 里的标签
-        target = item.get('tags', {}).get('target', 'all')
-        vibe = item.get('tags', {}).get('vibe', 'general')
+        # 获取词的标签
+        word_tags = item.get('tags', {})
+        vibe = word_tags.get('vibe', 'general')
+        target = word_tags.get('target', 'all')
+        
+        # 匹配逻辑：命中偏好则加权
+        if vibe in pref["preferred_vibe"] or target in pref["preferred_target"]:
+            score *= pref["boost_factor"]
 
-        # --- 核心逻辑：根据模板给标签加分 ---
-        # 如果模板喜欢这个人群，权重乘 2
-        if target == template_config.get("preferred_target"):
-            score *= 2.0
-        # 如果模板喜欢这个调性，权重加 3
-        if vibe == template_config.get("preferred_vibe"):
-            score += 3.0
-            
         choices.append(word)
         weights.append(score)
 
-    # 按照权重随机选一个
-    # np.random.choice 需要概率总和为 1，所以要做个归一化
+    # 概率抽样
     probs = np.array(weights) / sum(weights)
     return np.random.choice(choices, p=probs)
 # 📍 傻瓜调用：全站视觉一键同步
