@@ -35,34 +35,36 @@ def load_json_db():
             return json.load(f)
     return {}
 
-def smart_sample(category, template_name):
-    path = "data/creative_db.json"
-    if not os.path.exists(path): return "库不存在"
-    with open(path, 'r', encoding='utf-8') as f:
-        db = json.load(f)
+def smart_sample_with_ai(category, user_intent, inventory):
+    """
+    category: 类别 (Subject/Action等)
+    user_intent: 你在输入框写的“目的”
+    inventory: 该类别下的所有备选词汇列表
+    """
+    if not user_intent.strip():
+        # 如果没写目的，就纯随机，不浪费 API
+        return random.choice(inventory)
     
-    # 💡 核心指路：从 db["words"] 拿词，从 db["templates"] 拿规则
-    words_dict = db.get("words", {})
-    items = words_dict.get(category, [])
-    if not items: return f"[{category}空]"
-
-    templates = db.get("templates", {})
-    tpl = templates.get(template_name, {"pref_vibe": [], "pref_target": [], "boost": 1.0})
+    # 💡 核心：让 AI 帮你从仓库里挑词
+    from openai import OpenAI
+    client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
     
-    choices, weights = [], []
-    for item in items:
-        choices.append(item['val'])
-        # 这里的 weight_bonus 就是你在 Dashboard 表格里改的那个数字
-        score = float(item.get('weight_bonus', 1.0))
-        
-        # 匹配模板加成
-        tags = item.get('tags', {})
-        if tags.get('vibe') in tpl.get("pref_vibe", []):
-            score *= tpl.get("boost", 1.0)
-            
-        weights.append(score)
-
-    return np.random.choice(choices, p=np.array(weights)/sum(weights))
+    prompt = f"""
+    意图：{user_intent}
+    仓库词库：{inventory}
+    任务：请从仓库中挑选出一个最符合上述意图的词汇。
+    注意：只返回词汇本身，不要任何解释。
+    """
+    try:
+        res = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        picked_word = res.choices[0].message.content.strip()
+        # 确保选出的词确实在仓库里，防止 AI 瞎编
+        return picked_word if picked_word in inventory else random.choice(inventory)
+    except:
+        return random.choice(inventory)))
     
 # 📍 傻瓜调用：全站视觉一键同步
 apply_pro_style()
@@ -97,7 +99,7 @@ WAREHOUSE = {
 GALLERY_FILE = "gallery/inspirations.txt"
 
 # --- 定位：在 get_github_data 函数定义的上方插入 ---
-def smart_sample(category, template_name):
+s = smart_sample_with_ai("Subject", st.session_state.manual_editor, db_all["Subject"])
     # 读取你 03 页面生成的 JSON 地基
     db_path = "data/creative_db.json"
     if not os.path.exists(db_path): return "库未初始化"
