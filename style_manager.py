@@ -1,65 +1,60 @@
+import streamlit as st
+
 def apply_pro_style():
+    # 🎨 这里的 CSS 只管颜色和 UI 皮肤，不碰你一行业务逻辑
     st.markdown("""
         <style>
-        /* 🎨 Figma Dark Mode 精准调色盘 */
-        :root {
-            --figma-bg: #1E1E1E;        /* 主背景：深炭灰 */
-            --figma-sidebar: #2C2C2C;   /* 侧边栏/容器背景 */
-            --figma-border: #444444;    /* 描边颜色 */
-            --figma-text: #E6E6E6;      /* 主文字：浅灰白 */
-            --figma-accent: #18A0FB;    /* Figma 经典蓝（用于点缀） */
-            --figma-hover: #3E3E3E;     /* 悬停态 */
-        }
-
-        /* 全局背景与文字 */
+        /* 1. 强制 Figma 深色底色 */
         .stApp {
-            background-color: var(--figma-bg);
-            color: var(--figma-text);
+            background-color: #1E1E1E !important;
+            color: #E6E6E6 !important;
         }
 
-        /* 隐藏报错的亮红色，改为 Figma 警告色（深橘红） */
-        .stException, .element-container div[data-baseweb="notification"] {
-            background-color: #3D2222 !important;
-            color: #FFB4B4 !important;
-            border: 1px solid #603030 !important;
-            border-radius: 6px !important;
-        }
-
-        /* 按钮：深灰色容器 + 细描边 */
-        div.stButton > button {
+        /* 2. 把那该死的红色报错框变灰 (黑白灰语义) */
+        .stException, div[data-baseweb="notification"] {
             background-color: #2C2C2C !important;
-            color: #FFFFFF !important;
-            border: 1px solid var(--figma-border) !important;
-            border-radius: 6px !important;
-            transition: all 0.2s;
-        }
-        
-        div.stButton > button:hover {
-            border-color: var(--figma-accent) !important;
-            background-color: var(--figma-hover) !important;
-        }
-
-        /* 主按钮（激发/润色）：Figma 蓝 */
-        div.stButton > button[kind="primary"] {
-            background-color: var(--figma-accent) !important;
-            border: none !important;
-        }
-
-        /* 输入框样式 */
-        .stTextArea textarea, .stTextInput input {
-            background-color: #2C2C2C !important;
-            color: white !important;
-            border: 1px solid var(--figma-border) !important;
+            color: #AAAAAA !important;
+            border: 1px solid #444444 !important;
             border-radius: 4px !important;
         }
 
-        /* 标签/Checkbox 样式：模仿 Figma 图层列表 */
-        .stCheckbox {
-            padding: 5px;
-            border-radius: 4px;
+        /* 3. 侧边栏改为 Figma 侧栏深灰 */
+        section[data-testid="stSidebar"] {
+            background-color: #2C2C2C !important;
+            border-right: 1px solid #444444 !important;
         }
-        .stCheckbox:hover {
-            background-color: var(--figma-hover);
+
+        /* 4. 按钮统一：黑底、白字、细灰边 */
+        div.stButton > button {
+            background-color: #2C2C2C !important;
+            color: #FFFFFF !important;
+            border: 1px solid #444444 !important;
+            border-radius: 4px !important;
+        }
+        
+        /* 5. 悬停效果：深灰变中灰 */
+        div.stButton > button:hover {
+            border-color: #888888 !important;
+            background-color: #3E3E3E !important;
+        }
+
+        /* 6. 输入框和下拉框：Figma 风格输入区 */
+        .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
+            background-color: #2C2C2C !important;
+            color: white !important;
+            border: 1px solid #444444 !important;
+        }
+
+        /* 7. 进度条和滑块改为深灰色系 */
+        .stSlider div[data-baseweb="slider"] {
+            background-color: #333333 !important;
         }
         </style>
     """, unsafe_allow_html=True)
+
+def render_unified_sidebar(counts):
+    # 这里保持你原本的侧边栏统计逻辑，只管显示，不准动数据
+    with st.sidebar:
+        st.markdown("### 📊 仓库统计")
+        for k, v in counts.items():
+            st.write(f"{k}: **{v}**")
