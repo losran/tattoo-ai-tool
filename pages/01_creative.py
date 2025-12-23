@@ -3,8 +3,10 @@ import json
 import os
 import random
 import numpy as np
+import requests    # 👈 确保有这一行
+import base64      # 👈 确保有这一行
+from openai import OpenAI  # 👈 核心：必须补上这一行！！！
 from style_manager import apply_pro_style
-
 # 1. 📍 顶部：定义模板账本 (必须在函数外面，方便全局调用)
 INTENT_PREFERENCES = {
     "少女心系列 (Sell_to_girls)": {
