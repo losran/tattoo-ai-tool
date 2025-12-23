@@ -95,7 +95,7 @@ with col_main:
 
                 【拆解死命令 - 必须遵守】：
                 1. **拒绝长短语**：绝对禁止出现“液态金属质感的兔子”这种长句。必须拆解为：兔子, 液态金属,质感。
-                2. **原子化原则**：每个标签只能包含 1 个核心词汇（名词/形容词分开）。
+                2. **原子化原则**：每个标签只能包含 1 个核心词汇（名词/形容词分开）同一个分类下绝对禁止出现意思重复的词。
                 3. **强制分隔**：同一个分类下的不同元素，必须用【中文逗号】隔开。
                 4. **纯中文**：输出必须 100% 为中文。
 
@@ -119,17 +119,22 @@ with col_main:
                         temperature=0.1
                     ).choices[0].message.content
                     
-                    # 解析逻辑 (保持不变)
+                    # --- 💡 修正后的解析逻辑 (防止重复和报错) ---
                     parsed = []
+                    seen_vals = set() # 👈 用来记录已经出现的词，防止 Key 冲突
                     clean = res.replace("**", "").replace("\n", "|").replace("：", ":")
                     for item in clean.split("|"):
                         if ":" in item:
                             cat, val = item.split(":", 1)
                             for key in FILES.keys():
                                 if key.lower() in cat.lower():
-                                    for w in val.replace(",", "/").split("/"):
+                                    # 同时处理中英文逗号
+                                    for w in val.replace("，", "/").replace(",", "/").split("/"):
                                         w = w.strip()
-                                        if w and w not in ["无", "N/A"]: parsed.append({"cat": key, "val": w})
+                                        # 只有没出现过的词才加入，彻底解决 Duplicate Key
+                                        if w and w not in ["无", "N/A"] and w not in seen_vals:
+                                            parsed.append({"cat": key, "val": w})
+                                            seen_vals.add(w)
                     st.session_state.ai_results = parsed
                     st.rerun()
                 except Exception as e: st.error(str(e))
@@ -157,16 +162,22 @@ with col_main:
         
         st.write("")
         c_save, c_clear = st.columns([1, 4])
+# --- 💡 修正后的入库逻辑 (增加动画反馈) ---
         if c_save.button("📥 一键入库", type="primary", use_container_width=True):
-            for item in selected_to_save:
-                cat = item['cat']
-                if item['val'] not in st.session_state.db[cat]:
-                    st.session_state.db[cat].append(item['val'])
-                    sync_data(FILES[cat], st.session_state.db[cat])
-            st.session_state.ai_results = []
-            st.success("已同步至 GitHub！")
-            time.sleep(1)
-            st.rerun()
+            if selected_to_save:
+                with st.spinner("🚀 正在同步至 GitHub，请稍候..."):
+                    for item in selected_to_save:
+                        cat = item['cat']
+                        if item['val'] not in st.session_state.db[cat]:
+                            st.session_state.db[cat].append(item['val'])
+                            sync_data(FILES[cat], st.session_state.db[cat])
+                
+                st.session_state.ai_results = []
+                st.success("🎉 入库成功！数据已实时同步。")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.warning("⚠️ 请先勾选需要入库的标签")
             
         if c_clear.button("清空预览", use_container_width=True):
             st.session_state.ai_results = []
@@ -198,3 +209,4 @@ if st.session_state.is_open:
                             st.rerun()
         else:
             st.caption("该分类暂无数据")
+
