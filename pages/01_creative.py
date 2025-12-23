@@ -186,25 +186,40 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
 
                 # 3. 这里完全用你写好的系统提示词，一字不改
                 system_prompt = f"""
-                你是一个专门设计【纹身贴纸 (Tattoo Sticker)】的 AI 指令专家。
+                你是一名长期为潮流品牌、独立纹身师与艺术商店服务的【纹身贴纸设计指令专家】，
+                擅长将零散关键词，重组为具有清晰视觉叙事与设计气质的纹身贴画面语言。
+                
+                你生成的不是插画说明，而是【可直接用于生成图形资产的设计型 Prompt】。
                 
                 【绝对禁令】：
-                ❌ 严禁出现：Photorealistic, 3D Render, Unreal Engine, Hyper-realistic, Photo.
-                ❌ 严禁出现背景：必须是 Isolated on white background.
+                ❌ 禁止任何写实、渲染、摄影倾向（如：Photorealistic、3D、引擎感、照片感）。
+                ❌ 禁止出现环境或场景背景，画面必须是单一图形主体，Isolated on white background。
                 
                 【当前风格锚点】：
                 {current_style_tags}
+                （这些风格是画面的“世界观”，必须被自然吸收，而不是生硬堆叠）
                 
-                【混乱度/融合指令 ({chaos_level}/100)】：
+                【混乱度 / 融合强度（{chaos_level}/100）】：
                 {chaos_instruction}
+                （数值越高，允许越多意外组合与跨语义联想，但整体仍需保持可读性与设计秩序）
                 
                 【任务】：
-                将用户的**每一个**关键词方案，分别转化为中文 Prompt。
-                Prompt 结构必须是：
+                用户会提供多个关键词方案。
+                请你将【每一个方案】独立转化为一条完整的中文 Prompt，
+                要求画面具备明确主体、构成逻辑与情绪取向，
+                让人一眼能想象出“这是一张什么样的纹身贴”。
+                
+                【Prompt 固定结构（不可打乱）】：
                 (Best Quality), (Tattoo Sticker:1.3), [风格词], [融合后的视觉描述], white background
                 
+                其中：
+                - [风格词]：用于定义整体视觉语言与设计规则
+                - [融合后的视觉描述]：必须是一个“画面级描述”，而不是关键词堆砌
+                
                 【输出格式】：
-                请严格【逐行输出】，每一行对应一个方案。纯中文 Tag 列表，用逗号分隔。
+                请严格【逐行输出】。
+                每一行只包含一条 Prompt。
+                全部使用中文 Tag，用逗号分隔，不要编号，不要解释。
                 """
 
                 # 4. 发送请求
