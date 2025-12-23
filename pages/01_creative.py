@@ -76,6 +76,21 @@ client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepse
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO = "losran/tattoo-ai-tool"
 
+# --- 定位：在 WAREHOUSE 定义的上方插入 ---
+INTENT_PREFERENCES = {
+    "少女心系列 (Sell_to_girls)": {
+        "pref_vibe": ["cute", "healing", "minimalist", "治愈", "简约"],
+        "pref_target": ["female", "unisex"],
+        "boost": 6.0 
+    },
+    "硬核极客版 (Hardcore_Male)": {
+        "pref_vibe": ["cyberpunk", "dark", "hardcore", "赛博朋克", "冷酷"],
+        "pref_target": ["male", "unisex"],
+        "boost": 6.0
+    },
+    "完全随机模式": {"pref_vibe": [], "pref_target": [], "boost": 1.0}
+}
+
 WAREHOUSE = {
     "Subject": "data/subjects.txt", 
     "Action": "data/actions.txt", 
@@ -84,6 +99,31 @@ WAREHOUSE = {
     "Usage": "data/usage.txt"
 }
 GALLERY_FILE = "gallery/inspirations.txt"
+
+# --- 定位：在 get_github_data 函数定义的上方插入 ---
+def smart_sample(category, template_name):
+    # 读取你 03 页面生成的 JSON 地基
+    db_path = "data/creative_db.json"
+    if not os.path.exists(db_path): return "库未初始化"
+    with open(db_path, 'r', encoding='utf-8') as f:
+        db = json.load(f)
+    
+    items = db.get(category, [])
+    if not items: return "空"
+
+    pref = INTENT_PREFERENCES.get(template_name, INTENT_PREFERENCES["完全随机模式"])
+    choices, weights = [], []
+
+    for item in items:
+        choices.append(item['val'])
+        # 计算得分：基础权重 * 模板加成
+        score = float(item.get('weight_bonus', 1.0))
+        tags = item.get('tags', {})
+        if tags.get('vibe') in pref["pref_vibe"] or tags.get('target') in pref["pref_target"]:
+            score *= pref["boost"]
+        weights.append(score)
+
+    return np.random.choice(choices, p=np.array(weights)/sum(weights))
 
 # --- 2. 工具函数 ---
 def get_github_data(path):
@@ -177,7 +217,9 @@ with col_main:
     with col_cfg2: chaos_level = st.slider("混乱度 (Chaos)", 0, 100, 50)
     
     st.session_state.manual_editor = st.text_area("✍️ 组合输入框", value=st.session_state.manual_editor)
-
+    
+    # --- 必须在 182 行的 if 语句正上方插入 ---
+    selected_name = st.selectbox("🎯 意图模板", list(INTENT_PREFERENCES.keys()))
     # 2. 🔥 激发按钮 (放在逻辑最前面)
     if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
         st.session_state.polished_text = "" 
@@ -190,24 +232,24 @@ with col_main:
             st.error("⚠️ 仓库是空的！")
         else:
             for _ in range(num):
-                current_tags = st.session_state.manual_editor.split()
-                # 📍 必选分类对齐仓库
-                MANDATORY_KEYS = ['Subject', 'Style'] 
-                SIDE_KEYS = [k for k in db_all.keys() if k not in MANDATORY_KEYS and db_all[k]]
-
-                for key in MANDATORY_KEYS:
-                    if key in db_all and db_all[key]:
-                        current_tags.append(random.choice(db_all[key]))
-                
-                if SIDE_KEYS:
-                    extra_count = 2 if chaos_level < 30 else (5 if chaos_level < 70 else 8)
-                    for _ in range(extra_count):
-                        rand_cat = random.choice(SIDE_KEYS)
-                        current_tags.append(random.choice(db_all[rand_cat]))
-                
-                combined_p = " + ".join(list(dict.fromkeys(filter(None, current_tags))))
-                st.session_state.generated_cache.append(combined_p)
-            st.rerun()
+                        # 💡 内部逻辑开始，注意缩进：这里比 for 语句多 4 个空格
+                        s = smart_sample("Subject", selected_name)
+                        a = smart_sample("Action", selected_name)
+                        st_val = smart_sample("Style", selected_name)
+                        m = smart_sample("Mood", selected_name)
+                        u = smart_sample("Usage", selected_name)
+                        
+                        # 组合提示词
+                        combined_p = f"{s}，{a}，{st_val}风格，{m}氛围，纹在{u}"
+                        
+                        # 如果输入框有手动词，拼上去
+                        if st.session_state.manual_editor.strip():
+                            combined_p = f"{st.session_state.manual_editor} + {combined_p}"
+                            
+                        st.session_state.generated_cache.append(combined_p)
+                    
+                    # for 循环结束后，保持在 else 块内缩进执行 rerun
+                    st.rerun()
 
     # 3. 🎲 方案展示与筛选 (放在生成按钮之后，确保即时渲染)
     if st.session_state.generated_cache:
