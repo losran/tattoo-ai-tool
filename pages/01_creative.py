@@ -231,25 +231,25 @@ with col_main:
         if not any(db_all.values()):
             st.error("⚠️ 仓库是空的！")
         else:
+            # 232行: for 循环开始 (前面有 12 个空格)
             for _ in range(num):
-                        # 💡 内部逻辑开始，注意缩进：这里比 for 语句多 4 个空格
-                        s = smart_sample("Subject", selected_name)
-                        a = smart_sample("Action", selected_name)
-                        st_val = smart_sample("Style", selected_name)
-                        m = smart_sample("Mood", selected_name)
-                        u = smart_sample("Usage", selected_name)
-                        
-                        # 组合提示词
-                        combined_p = f"{s}，{a}，{st_val}风格，{m}氛围，纹在{u}"
-                        
-                        # 如果输入框有手动词，拼上去
-                        if st.session_state.manual_editor.strip():
-                            combined_p = f"{st.session_state.manual_editor} + {combined_p}"
-                            
-                        st.session_state.generated_cache.append(combined_p)
-                    
-                    # for 循环结束后，保持在 else 块内缩进执行 rerun
-                    st.rerun()
+                # 234行: 内部逻辑 (前面有 16 个空格)
+                s = smart_sample("Subject", selected_name)
+                a = smart_sample("Action", selected_name)
+                st_val = smart_sample("Style", selected_name)
+                m = smart_sample("Mood", selected_name)
+                u = smart_sample("Usage", selected_name)
+                
+                combined_p = f"{s}，{a}，{st_val}风格，{m}氛围，纹在{u}"
+                
+                if st.session_state.manual_editor.strip():
+                    combined_p = f"{st.session_state.manual_editor} + {combined_p}"
+                
+                # 将结果存入缓存 (前面有 16 个空格)
+                st.session_state.generated_cache.append(combined_p)
+            
+            # 250行: 整个 for 循环跑完后才刷新 (前面有 12 个空格)
+            st.rerun()
 
     # 3. 🎲 方案展示与筛选 (放在生成按钮之后，确保即时渲染)
     if st.session_state.generated_cache:
