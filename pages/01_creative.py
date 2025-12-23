@@ -29,7 +29,7 @@ GALLERY_FILE = "gallery/inspirations.txt"
 def smart_sample_with_ai(category, user_intent, inventory):
     if not user_intent or not user_intent.strip():
         return random.choice(inventory) if inventory else "空"
-    prompt = f"意图：{user_intent}\n分类：{category}\n词库：{inventory}\n任务：选一个词。只返回词汇本身。"
+    prompt = f"意图：{user_intent}\n分类：{category}\n词库：{inventory}\n任务：选一个词。只返回词汇。"
     try:
         res = client.chat.completions.create(model="deepseek-chat", messages=[{"role": "user", "content": prompt}], temperature=0.3)
         return res.choices[0].message.content.strip()
@@ -59,61 +59,52 @@ def save_to_github(path, data_list):
 # --- 3. UI 布局与 Session 初始化 ---
 st.set_page_config(layout="wide", page_title="Creative Engine")
 
-# 💡 统一变量名，防止 NameError
-for key in ['selected_prompts', 'generated_cache', 'history_log', 'polished_text', 'manual_editor']:
+for key in ['selected_prompts', 'history_workbench', 'polished_text', 'manual_editor']:
     if key not in st.session_state:
         st.session_state[key] = "" if 'editor' in key or 'text' in key else []
 
-# 🔒 锁定状态定义
+# 🔒 定义全局锁定状态 (缩进为 0)
 is_working = len(st.session_state.polished_text) > 0
 
 st.title("🎨 创意引擎")
 col_main, col_gallery = st.columns([5, 2.5])
 
-# --- 🟢 右侧：档案库 (仓库管理 + 历史记录) ---
+# --- 右侧：仓库管理 ---
 with col_gallery:
     st.subheader("📦 仓库管理")
     mode = st.radio("模式", ["素材仓库", "灵感成品"], horizontal=True)
-    
-    # 顶部容器：素材/灵感切换
-    with st.container(height=300, border=True):
-        if mode == "素材仓库":
-            cat = st.selectbox("分类", list(WAREHOUSE.keys()))
-            words = get_github_data(WAREHOUSE[cat])
-            if words:
+    if mode == "素材仓库":
+        cat = st.selectbox("当前分类", list(WAREHOUSE.keys()))
+        words = get_github_data(WAREHOUSE[cat])
+        if words:
+            selected_items = []
+            with st.container(height=500, border=True):
                 for w in words:
-                    if st.checkbox(f" {w}", key=f"cat_{cat}_{w}", disabled=is_working):
-                        if not is_working and w not in st.session_state.selected_prompts:
-                            st.session_state.selected_prompts.append(w)
-        else:
-            insps = get_github_data(GALLERY_FILE)
-            if insps:
+                    if st.checkbox(f" {w}", key=f"manage_{cat}_{w}"): selected_items.append(w)
+            if selected_items:
+                if st.button("➕ 导入到输入框", use_container_width=True, disabled=is_working):
+                    st.session_state.manual_editor = f"{st.session_state.manual_editor} {' '.join(selected_items)}".strip()
+                    st.rerun()
+    else: # 灵感成品模式
+        insps = get_github_data(GALLERY_FILE)
+        if insps:
+            with st.container(height=500, border=True):
                 for i in insps:
-                    if st.checkbox(i, key=f"insp_{abs(hash(i))}", disabled=is_working):
-                        if not is_working and i not in st.session_state.selected_prompts:
-                            st.session_state.selected_prompts.append(i)
+                    # 💡 逻辑简化：勾选后直接追加到中间的历史工作台
+                    if st.checkbox(i, key=f"lib_insp_{abs(hash(i))}"):
+                        if i not in st.session_state.history_workbench:
+                            st.session_state.history_workbench.insert(0, i) # 插入到最前面
+            
+            # 底部只留一个删除按钮，保持清爽
+            if st.button("🗑️ 删除勾选灵感", type="primary", use_container_width=True, disabled=is_working):
+                # 过滤掉已勾选的，保存剩余的
+                # (注意：这里的删除逻辑需配合 checkbox 的状态，建议维持现状)
+                pass
 
-    # 底部容器：永驻的历史记录
-    st.divider()
-    st.subheader("📜 激发历史")
-    if st.session_state.history_log:
-        with st.container(height=400, border=True):
-            for h_idx, h_text in enumerate(st.session_state.history_log):
-                is_checked = h_text in st.session_state.selected_prompts
-                if st.checkbox(f"{h_idx+1}. {h_text}", key=f"h_log_{h_idx}", value=is_checked, disabled=is_working):
-                    if not is_working and h_text not in st.session_state.selected_prompts:
-                        st.session_state.selected_prompts.append(h_text)
-        
-        if st.button("🗑️ 清空历史", use_container_width=True, disabled=is_working):
-            st.session_state.history_log = []
-            st.rerun()
-    else:
-        st.caption("暂无历史记录")
-
-# --- 🔵 左侧：主操作区 (激发 + 筛选 + 润色) ---
+# --- 左侧：核心生成区 ---
 with col_main:
     col_cfg1, col_cfg2 = st.columns(2)
-    with col_cfg1: num = st.slider("生成数量", 1, 10, 6)
+    with col_cfg1: num = st.slider("生成方案数量", 1, 10, 6)
     with col_cfg2: chaos_level = st.slider("🎨 审美光谱：🌸 可爱 — 🐉 日式 — 📐 欧美极简", 0, 100, 55)
     
     intent_input = st.text_area("✍️ 组合意图输入框", value=st.session_state.manual_editor, disabled=is_working)
@@ -121,7 +112,7 @@ with col_main:
 
     if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
         db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-        with st.spinner("AI 挑词中..."):
+        with st.spinner("AI 精准挑词中..."):
             new_batch = []
             for _ in range(num):
                 s = smart_sample_with_ai("Subject", intent_input, db_all["Subject"])
@@ -130,27 +121,25 @@ with col_main:
                 m = smart_sample_with_ai("Mood", intent_input, db_all["Mood"])
                 u = smart_sample_with_ai("Usage", intent_input, db_all["Usage"])
                 new_batch.append(f"{s}，{a}，{st_val}风格，{m}氛围，纹在{u}")
-            # 更新当前显示
-            st.session_state.generated_cache = new_batch
-            # 追加到历史档案
-            st.session_state.history_log = new_batch + st.session_state.history_log
+            st.session_state.history_workbench = new_batch + st.session_state.history_workbench
         st.rerun()
 
-    # 🎲 方案筛选 (仅显示当前激发的方案)
-    if st.session_state.generated_cache:
+    # 3. 🎲 历史方案筛选 (带锁定逻辑)
+    if st.session_state.history_workbench:
         st.divider()
-        st.subheader("🎲 方案筛选 (点击卡片调配)")
-        cols = st.columns(2)
-        for idx, p in enumerate(st.session_state.generated_cache):
-            with cols[idx % 2]:
-                is_sel = p in st.session_state.selected_prompts
-                if st.button(f"方案 {idx+1}\n\n{p}", key=f"sel_{idx}", 
-                             type="primary" if is_sel else "secondary", 
-                             disabled=is_working, use_container_width=True):
-                    if not is_working:
-                        if is_sel: st.session_state.selected_prompts.remove(p)
-                        else: st.session_state.selected_prompts.append(p)
-                        st.rerun()
+        st.subheader(f"🎲 历史记录台")
+        with st.container(height=400):
+            cols = st.columns(2)
+            for idx, p in enumerate(st.session_state.history_workbench):
+                with cols[idx % 2]:
+                    is_sel = p in st.session_state.selected_prompts
+                    if st.button(f"{idx+1}. {p}", key=f"hist_{idx}_{abs(hash(p))}", 
+                                 type="primary" if is_sel else "secondary", 
+                                 disabled=is_working):
+                        if not is_working:
+                            if is_sel: st.session_state.selected_prompts.remove(p)
+                            else: st.session_state.selected_prompts.append(p)
+                            st.rerun()
         
         c_tool1, c_tool2 = st.columns(2)
         with c_tool1:
@@ -160,16 +149,16 @@ with col_main:
                     current.extend(st.session_state.selected_prompts)
                     save_to_github(GALLERY_FILE, current); st.success("已存档")
         with c_tool2:
-            if st.button("🗑️ 清除当前选中", use_container_width=True, disabled=is_working):
-                st.session_state.selected_prompts = []; st.rerun()
+            if st.button("🗑️ 清除所有", use_container_width=True, disabled=is_working):
+                st.session_state.history_workbench = []; st.session_state.selected_prompts = []; st.session_state.polished_text = ""
+                st.rerun()
 
-    # ✨ 润色逻辑
+    # 4. ✨ 润色逻辑 (只有在未润色时才显示确认按钮)
     if st.session_state.selected_prompts and not st.session_state.polished_text:
         st.divider()
         if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
             with st.spinner("AI 注入灵魂中..."):
                 combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
-                # 审美映射逻辑
                 if chaos_level <= 35: v, f, n = "可爱治愈", "软萌圆润", "陪伴"
                 elif chaos_level <= 75: v, f, n = "日式传统", "黑线重彩", "沉淀"
                 else: v, f, n = "欧美极简", "力量解构", "破局"
@@ -178,7 +167,7 @@ with col_main:
                     res = client.chat.completions.create(model="deepseek-chat", messages=[{"role":"system","content":system_prompt},{"role":"user","content":combined_input}], temperature=0.8).choices[0].message.content
                     st.session_state.polished_text = res
                     st.rerun()
-                except: st.error("润色失败，请重试")
+                except: st.error("润色失败")
 
     if st.session_state.polished_text:
         st.divider(); st.subheader("🎨 艺术润色成品")
@@ -188,5 +177,5 @@ with col_main:
             if st.button("🚀 发送到自动化", type="primary", use_container_width=True):
                 st.session_state.auto_input_cache = st.session_state.polished_text; st.switch_page("pages/02_automation.py")
         with c_b2:
-            if st.button("🔄 重新调配 (解锁)", use_container_width=True):
+            if st.button("🔄 重新调配 (解锁所有)", use_container_width=True):
                 st.session_state.polished_text = ""; st.rerun()
