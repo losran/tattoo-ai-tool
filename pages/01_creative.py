@@ -156,54 +156,60 @@ with col_main:
         num = st.number_input("数量", 1, 10, 6, label_visibility="collapsed")
     with col_btn_r:
         if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
-            # 获取所有仓库数据
+            # 1. 核心修复：确保变量在这里一定能读到
+            # 这里的 style_tone 和 chaos_level 必须对应你前面 slider/radio 的 key
+            current_style = style_tone 
+            current_chaos = chaos_level 
+            
+            # 获取数据
             db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
             
             with st.spinner("AI 正在根据调性和意图深度融合中..."):
-                # --- A. 逻辑判断：是否是盲盒模式 & 意图跟随 ---
+                # --- A. 逻辑判断 ---
                 has_intent = bool(intent_input.strip())
-                is_blind_box = (style_tone == "自由盲盒")
+                is_blind_box = (current_style == "自由盲盒")
                 
-                # 确定风格指令
                 if is_blind_box:
                     style_instruction = "不限风格，请在词库中大胆跨界碰撞，追求极致的随机惊喜。"
                 else:
-                    style_instruction = f"强制要求将用户意图与【{style_tone}】风格进行深度融合。即使意图与之冲突（如：暗黑内容遇上可爱风格），也要创作出具有该风格特征的变形设计。"
+                    style_instruction = f"强制要求将用户意图与【{current_style}】风格进行深度融合。即使意图与之冲突，也要创作出具有该风格特征的变形设计。"
 
-                # --- B. 智能采样：如果有输入意图，AI 辅助挑词；没有则随机 ---
+                # --- B. 智能采样 ---
                 smart_sample_db = {}
                 for k, v in db_all.items():
+                    if not v: # 防止库为空报错
+                        smart_sample_db[k] = ["默认元素"]
+                        continue
                     if has_intent:
-                        # 调用顶部的 ai_pre_filter 函数 (如果没有定义请告诉我)
-                        smart_sample_db[k] = ai_pre_filter(k, intent_input, v, limit=15)
+                        # 尝试 AI 预选，失败则随机
+                        try:
+                            smart_sample_db[k] = ai_pre_filter(k, intent_input, v, limit=15)
+                        except:
+                            smart_sample_db[k] = random.sample(v, min(len(v), 15))
                     else:
-                        # 随机抽样量随混乱度增加
-                        sample_size = int(15 + (chaos_val / 100) * 20)
-                        smart_sample_db[k] = random.sample(v, min(len(v), sample_size))
+                        # 随机抽样
+                        s_size = int(15 + (current_chaos / 100) * 20)
+                        smart_sample_db[k] = random.sample(v, min(len(v), s_size))
 
-                # --- C. 动态参数：脑洞越大，AI 越疯 ---
-                dynamic_temp = 0.4 + (chaos_val / 100) * 0.55 
+                # --- C. 动态参数 ---
+                dynamic_temp = 0.4 + (current_chaos / 100) * 0.55 
 
-                # --- D. 核心指令包 (fast_prompt) ---
+                # --- D. 核心指令包 (这就是你要的 fast_prompt) ---
                 fast_prompt = f"""
-                任务：作为艺术策展人，生成 {num} 个独特的纹身方案。
-                当前意图：{intent_input if has_intent else '完全随机灵感'}
-                当前调性要求：{style_instruction}
-                创意混乱度：{chaos_val}/100
+                任务：作为纹身策展大师，生成 {num} 个方案。
+                意图：{intent_input if has_intent else '完全随机'}
+                调性：{style_instruction}
+                混乱度：{current_chaos}/100
 
-                【核心逻辑：风格融合】
-                不要忽略用户意图，但必须用“调性要求”中的风格去重塑它。
-                例如：意图是“骷髅”，风格是“可爱”，你要产出“粉嫩的糖果骷髅”。
+                要求：
+                1. 必须融合意图与风格调性。
+                2. 格式：主体，动作，风格，氛围，部位
+                3. 只返回列表，禁止解释。
 
-                【参考词库】：
-                {smart_sample_db}
-
-                【格式要求】：
-                主体，动作，风格，氛围，部位
-                (只返回列表，每行一个，禁止废话说明)
+                参考词库：{smart_sample_db}
                 """
 
-                # --- E. 寄出指令并处理结果 ---
+                # --- E. 寄出并处理 ---
                 try:
                     res = client.chat.completions.create(
                         model="deepseek-chat",
@@ -211,12 +217,11 @@ with col_main:
                         temperature=dynamic_temp
                     )
                     raw_content = res.choices[0].message.content.strip()
-                    # 分割行并清洗无效数据
                     raw_list = raw_content.split('\n')
                     st.session_state.generated_cache = [line.strip() for line in raw_list if "，" in line or "," in line][:num]
                     st.rerun()
                 except Exception as e:
-                    st.error(f"激发失败，原因：{e}")
+                    st.error(f"AI 激发失败: {e}")
                     
     # 🎲 方案筛选 (中间桌面)
     if st.session_state.generated_cache:
