@@ -159,9 +159,9 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
     if st.button("✨ 确认并转化为绘画提示词 (含方案锚点)", type="primary", use_container_width=True):
         st.session_state.generated_cache = [] # 清理桌面
         
-        with st.spinner(f"AI 正在执行【{style_tone}】风格的【{chaos_level}% 基因突变】并生成分段锚点..."):
+        with st.spinner(f"AI 正在执行【{style_tone}】风格转化，并生成【方案】分段锚点..."):
             try:
-                # 1. 风格基调 (Style DNA) - 保持你原版逻辑
+                # 1. 风格基调 (Style DNA) - 完整保留你的生词库
                 style_dict = {
                     "可爱柔美": "Vector Art, thick rounded outlines, pastel flat colors, sticker art, kawaii core, no shading",
                     "轻盈水彩": "Hand-drawn Watercolor, ink bleed effect, white negative space, artistic splash, soft edges, illustration",
@@ -171,7 +171,7 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
                 }
                 current_style_tags = style_dict.get(style_tone, "2D Vector Art, clean lines")
 
-                # 2. 混乱度逻辑 - 保持你原版逻辑
+                # 2. 混乱度逻辑 - 完整保留你的描述词逻辑
                 if chaos_level <= 30:
                     chaos_instruction = "严格遵守风格定义，不要添加任何奇怪元素，保持画风纯正、传统、稳健。"
                 elif chaos_level <= 70:
@@ -184,7 +184,7 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
                     3. 关键词要包含：ART, Hybrid (混合体), old school, Y2K。
                     """
 
-                # 3. 构造 System Prompt - 微调要求让AI知道要逐行处理
+                # 3. 构造 System Prompt - 强化对“方案”字样的输出要求
                 system_prompt = f"""
                 你是一个专门设计【纹身贴纸 (Tattoo Sticker)】的 AI 指令专家。
                 
@@ -199,51 +199,44 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
                 {chaos_instruction}
                 
                 【任务】：
-                将用户的**每一个**关键词方案，分别转化为中文 Prompt。
-                Prompt 结构必须是：
-                (Best Quality), (Tattoo Sticker:1.3), [风格词], [融合后的视觉描述], white background
+                将用户的每一个关键词方案转化为英文 Prompt。
                 
-                【输出格式】：
-                请严格【逐行输出】，每一行对应一个方案。纯中文 Tag 列表，用逗号分隔。
+                【强制输出格式】：
+                1. 每一行必须以“方案X:”开头（例如：方案1: ..., 方案2: ...）。
+                2. 紧接着“方案X:”之后，必须包含以下固定前缀：(Masterpiece), (Tattoo Sticker:1.4), (2D:1.3), white background, {current_style_tags}。
+                3. 最后加上基于用户方案的视觉细节描述（英文标签）。
                 """
 
-                # 4. 发送请求 (这里的 raw_input 加了编号，帮AI对齐)
-                input_lines = [f"Scheme {i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)]
+                # 4. 发送请求
+                input_lines = [f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)]
                 raw_input = "\n".join(input_lines)
                 
                 res = client.chat.completions.create(
                     model="deepseek-chat", 
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"请逐行处理以下方案：\n{raw_input}"}
+                        {"role": "user", "content": f"请润色并转化以下方案为绘图指令：\n{raw_input}"}
                     ], 
                     temperature=0.6 + (chaos_level / 200)
                 )
                 
-                # 5. 物理分段 + 锚点植入 (核心修改)
-                ai_output = res.choices[0].message.content.strip()
-                ai_lines = [line for line in ai_output.split('\n') if line.strip()]
+                # 5. 结果物理清洗与二次加固（确保自动化识别万无一失）
+                raw_output = res.choices[0].message.content.strip()
+                ai_lines = [line for line in raw_output.split('\n') if line.strip()]
                 
                 final_output_list = []
-                # 你的物理前缀
-                prefix = "(Masterpiece), (Tattoo Sticker:1.4), (2D:1.3), white background, "
+                prefix_lock = "(Masterpiece), (Tattoo Sticker:1.4), (2D:1.3), white background, "
                 
-                # 循环拼接，确保每一行都有“方案X:”
-                for idx, prompt_text in enumerate(ai_lines):
-                    # 防止AI回传的行数多于或少于输入，做一个安全截断
+                for idx, line_text in enumerate(ai_lines):
                     if idx >= len(st.session_state.selected_prompts): break
                     
-                    # 清洗一下AI可能自带的序号
-                    clean_prompt = prompt_text.split(':')[-1].split('.')[-1].strip()
-                    clean_prompt = clean_prompt.replace("Prompt:", "").replace("提示词:", "")
+                    # 清洗 AI 吐出的多余内容
+                    clean_tags = line_text.split(':')[-1].split('：')[-1].strip()
+                    clean_tags = clean_tags.replace("Prompt", "").replace("提示词", "").strip(" .")
                     
-                    # 组装：方案X: + 前缀 + 风格 + 内容
-                    formatted_line = f"方案{idx+1}: {prefix} {current_style_tags}, {clean_prompt}"
-                    final_output_list.append(formatted_line)
-                
-                # 如果AI偶尔抽风只回了一行，这里做一个兜底，强行把所有方案都列出来
-                if not final_output_list and ai_output:
-                     final_output_list.append(f"方案1: {prefix} {current_style_tags}, {ai_output}")
+                    # 强行重新拼装，确保“方案X”和“生词前缀”格式 100% 准确
+                    final_line = f"方案{idx+1}: {prefix_lock}{current_style_tags}, {clean_tags}"
+                    final_output_list.append(final_line)
 
                 st.session_state.polished_text = "\n\n".join(final_output_list)
                 st.rerun()
@@ -254,9 +247,9 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
 if st.session_state.polished_text:
     st.divider(); st.subheader("🎨 绘图提示词 (Ready)")
     
-    st.text_area("提示词预览 (已加锚点)：", st.session_state.polished_text, height=300)
+    st.text_area("提示词预览 (包含方案锚点与生词逻辑)：", st.session_state.polished_text, height=300)
     
-    # 自动化入口 (保证不丢！)
+    # 自动化入口
     c_auto_1, c_auto_2 = st.columns(2)
     with c_auto_1:
         if st.button("🚀 发送到自动化生成", type="primary", use_container_width=True):
