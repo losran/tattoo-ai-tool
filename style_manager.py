@@ -3,105 +3,97 @@ import streamlit as st
 def apply_pro_style():
     st.markdown("""
     <style>
-        /* 1. 全局：Apple 黑暗模式底色 */
+        /* 1. 基础环境：纯黑底色 + SF Pro 字体栈 */
         .stApp {
             background-color: #000000;
-            font-family: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
         }
 
-        /* 2. 隐藏冗余线与页眉 */
+        /* 隐藏无用组件 */
         [data-testid="stHeader"] { display: none; }
         footer { visibility: hidden; }
 
-        /* 3. 右侧“仓库”容器：深空灰磨砂感 */
+        /* 2. 右侧仓库容器：极简细边分割 */
         [data-testid="column"]:nth-child(2) {
-            background: rgba(20, 20, 22, 0.8) !important;
-            backdrop-filter: blur(30px);
-            border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
-            padding: 30px 20px !important;
+            background: rgba(10, 10, 10, 0.4) !important;
+            backdrop-filter: blur(20px);
+            border-left: 0.5px solid rgba(255, 255, 255, 0.1) !important;
+            padding: 30px 15px !important;
         }
 
-        /* 4. 重点：蓝色呼吸按钮（Apple 风格） */
-        .stButton>button {
-            background: linear-gradient(135deg, #007AFF 0%, #0051D8 100%) !important;
-            border: none !important;
-            border-radius: 10px !important;
-            color: #ffffff !important;
-            font-weight: 500 !important;
-            letter-spacing: 0.5px !important;
-            padding: 0.6rem 2rem !important;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3) !important;
-        }
-        .stButton>button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 25px rgba(0, 122, 255, 0.4) !important;
-        }
-
-        /* 5. 极简卡片：不再是红坨坨，改为深灰蓝边框 */
+        /* 3. 核心：仓库标签 - 淡淡的轮廓线风格 */
         .tag-card {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 12px 16px;
-            margin-bottom: 10px;
-            transition: all 0.2s ease;
+            background: transparent; /* 移除背景填充 */
+            border: 0.8px solid rgba(255, 255, 255, 0.15); /* 淡淡的轮廓 */
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
+
+        /* 鼠标指上去时的交互：轮廓变亮，背景微弱变蓝 */
         .tag-card:hover {
+            border-color: #007AFF; /* 苹果标准蓝 */
             background: rgba(0, 122, 255, 0.05);
-            border-color: #007AFF;
-            transform: scale(1.01);
+            box-shadow: 0 0 10px rgba(0, 122, 255, 0.1);
         }
         
-        /* 卡片内文字 */
+        /* 标签文字：更细、更优雅 */
         .tag-text {
-            color: #EBEBF5;
-            font-size: 14px;
-            font-weight: 400;
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 13.5px;
+            font-weight: 300;
+            letter-spacing: 0.3px;
         }
 
-        /* 极简删除按钮 */
+        /* 删除按钮：平时隐藏，鼠标移入卡片时显现 */
         .tag-del-btn {
-            color: #8E8E93;
+            color: rgba(255, 255, 255, 0.3);
             cursor: pointer;
-            font-size: 18px;
-            transition: color 0.2s;
+            font-size: 16px;
+            font-weight: 200;
+            transition: 0.2s;
         }
-        .tag-del-btn:hover { color: #FF453A; }
+        .tag-card:hover .tag-del-btn {
+            color: #FF3B30; /* 只有要删除时才显示红色警告感 */
+        }
 
-        /* 6. 侧边栏指标：冷色科技感 */
+        /* 4. 侧边栏指标统计：数字高亮，文字暗淡 */
         .metric-item {
             display: flex;
             justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 10px 0;
+            border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
         }
-        .metric-label { color: #8E8E93; font-size: 12px; text-transform: uppercase; }
-        .metric-value { color: #0A84FF; font-family: 'SF Mono', monospace; font-weight: 600; }
+        .metric-label { color: #636366; font-size: 11px; font-weight: 500; }
+        .metric-value { color: #0A84FF; font-family: 'SF Mono', monospace; font-size: 13px; }
 
-        /* 7. 输入框美化 */
-        .stTextArea textarea {
-            background-color: rgba(255, 255, 255, 0.05) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            border-radius: 12px !important;
+        /* 5. 蓝色主按钮：保持高级渐变感但减小阴影 */
+        .stButton>button {
+            background: linear-gradient(180deg, #007AFF 0%, #0063E2 100%) !important;
+            border: none !important;
+            border-radius: 8px !important;
             color: white !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            padding: 0.5rem 1.5rem !important;
+            box-shadow: 0 2px 8px rgba(0, 122, 255, 0.2) !important;
+        }
+
+        /* 6. 输入框：同步轮廓线风格 */
+        .stTextArea textarea {
+            background-color: rgba(255, 255, 255, 0.03) !important;
+            border: 0.8px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 10px !important;
+            color: #ffffff !important;
+            font-size: 14px !important;
+        }
+        .stTextArea textarea:focus {
+            border-color: #007AFF !important;
+            box-shadow: 0 0 0 1px #007AFF !important;
         }
     </style>
     """, unsafe_allow_html=True)
-
-def render_unified_sidebar(counts_dict):
-    with st.sidebar:
-        st.markdown("<h2 style='color:white; letter-spacing:-1px;'>Tattoo AI</h2>", unsafe_allow_html=True)
-        st.markdown("<div style='height: 45vh'></div>", unsafe_allow_html=True)
-        
-        st.markdown('<p style="color:#48484A; font-size:10px; font-weight:600;">SYSTEM TELEMETRY</p>', unsafe_allow_html=True)
-        for label, val in counts_dict.items():
-            st.markdown(f'''
-                <div class="metric-item">
-                    <span class="metric-label">{label}</span>
-                    <span class="metric-value">{val}</span>
-                </div>
-            ''', unsafe_allow_html=True)
