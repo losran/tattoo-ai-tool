@@ -123,7 +123,8 @@ with col_gallery:
 with col_main:
     col_cfg1, col_cfg2 = st.columns(2)
     with col_cfg1: num = st.slider("生成方案数量", 1, 10, 6)
-    with col_cfg2: chaos_level = st.slider("混乱度 (Chaos)", 0, 100, 50)
+    with col_cfg2: 
+    chaos_level = st.slider("🎨 审美光谱：🌸 可爱 — 🐉 日式 — 📐 欧美极简", 0, 100, 55)
     
     intent_input = st.text_area("✍️ 组合意图输入框 (AI将根据此内容从库中选词)", value=st.session_state.manual_editor, placeholder="例如：想要一个治愈女生的简约风格...")
     st.session_state.manual_editor = intent_input
