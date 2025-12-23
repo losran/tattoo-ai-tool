@@ -134,9 +134,11 @@ with col_main:
                     st.session_state.generated_cache.append(combined_p)
             st.rerun()
 
+# 3. 🎲 方案展示与筛选
     if st.session_state.generated_cache:
         st.divider()
-        st.subheader("🎲 方案筛选")
+        st.subheader("🎲 方案筛选 (点击卡片进行调配)")
+        
         cols = st.columns(2)
         for idx, p in enumerate(st.session_state.generated_cache):
             with cols[idx % 2]:
@@ -145,6 +147,26 @@ with col_main:
                     if is_sel: st.session_state.selected_prompts.remove(p)
                     else: st.session_state.selected_prompts.append(p)
                     st.rerun()
+        
+        # --- 🚀 新增：方案筛选下方的功能按钮 ---
+        st.write("") # 留点间隙
+        c_tool1, c_tool2 = st.columns(2)
+        with c_tool1:
+            if st.button("💾 存入成品库 (保存当前选中组合)", use_container_width=True):
+                if st.session_state.selected_prompts:
+                    current = get_github_data(GALLERY_FILE)
+                    current.extend(st.session_state.selected_prompts)
+                    if save_to_github(GALLERY_FILE, current):
+                        st.success(f"已将 {len(st.session_state.selected_prompts)} 组方案存入成品库")
+                else:
+                    st.warning("请先勾选上方方案再进行存储")
+                    
+        with c_tool2:
+            if st.button("🗑️ 清除所有已选/已生成", use_container_width=True):
+                st.session_state.generated_cache = []
+                st.session_state.selected_prompts = []
+                st.session_state.polished_text = ""
+                st.rerun()
 
     # ✨ 核心缩进正确版润色逻辑
     if st.session_state.selected_prompts and not st.session_state.polished_text:
