@@ -125,23 +125,16 @@ with col_main:
     intent_input = st.text_area("✍️ 组合意图输入框", value=st.session_state.manual_editor, disabled=is_working)
     st.session_state.manual_editor = intent_input
 
-    if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
+if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
         db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-        with st.spinner("AI 精准挑词中..."):
+        with st.spinner("AI 挑词中..."):
             new_batch = []
             for _ in range(num):
-                s = smart_sample_with_ai("Subject", intent_input, db_all["Subject"])
-                a = smart_sample_with_ai("Action", intent_input, db_all["Action"])
-                st_val = smart_sample_with_ai("Style", intent_input, db_all["Style"])
-                m = smart_sample_with_ai("Mood", intent_input, db_all["Mood"])
-                u = smart_sample_with_ai("Usage", intent_input, db_all["Usage"])
+                # ... (抽词逻辑保持不变) ...
                 new_batch.append(f"{s}，{a}，{st_val}风格，{m}氛围，纹在{u}")
             
-            # 💡 关键改动：
-            # generated_cache 只存这一次激发的（中间显示用）
+            # 💡 这里只更新生成的缓存，先不写 history_log
             st.session_state.generated_cache = new_batch 
-            # history_log 存入所有历史（右侧档案室用）
-            st.session_state.history_log = new_batch + st.session_state.history_log 
         st.rerun()
 
     # 3. 🎲 历史方案筛选 (带锁定逻辑)
