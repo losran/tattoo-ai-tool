@@ -4,22 +4,24 @@ import streamlit as st
 def apply_pro_style():
     st.markdown("""
     <style>
-        /* 1. 🎨 Figma 质感深色：深炭灰背景，告别纯黑 */
+        /* 1. 🎨 Figma 核心底色：深炭灰背景 */
         .stApp { 
-            background-color: #121212; 
-            color: #E0E0E0; 
+            background-color: #121212 !important; 
+            color: #E6E6E6 !important; 
         }
         [data-testid="stHeader"] { background: transparent !important; }
 
-        /* 2. 🚫 杀掉报错红：改为克制的“深红褐色”背景 */
-        .stException, div[data-baseweb="notification"], .stAlert {
-            background-color: #2D1B1B !important;
-            color: #FFB4B4 !important;
-            border: 1px solid #4D2D2D !important;
+        /* 2. 🚫 物理封印红色报错：强行改为 Figma 警告色（深褐灰） */
+        .stException, div[data-baseweb="notification"], .stAlert, [data-testid="stNotification"] {
+            background-color: #2D2D2D !important;
+            color: #AAAAAA !important;
+            border: 1px solid #444444 !important;
             border-radius: 8px !important;
         }
+        /* 针对错误堆栈的文字颜色也强制变灰 */
+        .stException pre { color: #888888 !important; }
 
-        /* 3. 📍 右侧面板：带有高级磨砂感的深灰 */
+        /* 3. 📍 右侧面板：Figma 图层面板色 */
         [data-testid="column"]:nth-child(2) {
             background-color: #1E1E1E !important;
             border-left: 1px solid #333333 !important;
@@ -27,59 +29,46 @@ def apply_pro_style():
             height: 100vh !important;
             position: fixed !important;
             right: 0; top: 0; z-index: 99;
-            box-shadow: -4px 0 15px rgba(0,0,0,0.3);
         }
 
-        /* 4. 🏷️ 极简标签：深色背景 + 极细边框光 */
+        /* 4. 🏷️ 极简标签：深灰背景 + 极细白边 */
         .tag-pill {
             display: flex;
             align-items: center;
-            background: #252525;
-            border: 1px solid #3A3A3A;
-            border-radius: 6px;
-            margin-bottom: 6px;
-            padding: 4px 12px;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            color: #CCCCCC;
-            font-size: 14px;
+            background: #252525 !important;
+            border: 1px solid #3A3A3A !important;
+            border-radius: 4px !important;
+            margin-bottom: 6px !important;
+            padding: 4px 12px !important;
+            color: #CCCCCC !important;
         }
-        /* 悬停不再变红，而是边框亮起 */
-        .tag-pill:hover { 
-            border-color: #18A0FB; 
-            background: #2A2A2A; 
-            color: #FFFFFF;
-        }
+        .tag-pill:hover { border-color: #888888 !important; background: #2A2A2A !important; }
 
-        /* 5. 🔘 按钮：Figma 风格的克制灰 */
+        /* 5. 🔘 按钮：Figma 风格黑底白字 */
         div.stButton > button {
             background-color: #2C2C2C !important;
-            color: #EEEEEE !important;
+            color: #FFFFFF !important;
             border: 1px solid #444444 !important;
             border-radius: 6px !important;
-            transition: all 0.2s !important;
         }
         div.stButton > button:hover { 
-            border-color: #666666 !important; 
+            border-color: #18A0FB !important; /* 仅保留 Figma 蓝作为交互反馈 */
             background-color: #333333 !important; 
         }
         
-        /* ⚡ 主按钮：保持唯一的品牌蓝 */
+        /* ⚡ 主按钮：强制黑白灰化，或者保留极克制的蓝色 */
         div.stButton > button[kind="primary"] {
             background-color: #18A0FB !important;
             color: white !important;
             border: none !important;
-            box-shadow: 0 4px 12px rgba(24, 160, 251, 0.2) !important;
         }
 
-        /* 6. ✍️ 输入框：深沉的嵌入感 */
-        .stTextArea textarea {
+        /* 6. ✍️ 输入框：深沉嵌入感 */
+        .stTextArea textarea, .stTextInput input {
             background-color: #1E1E1E !important;
             color: #FFFFFF !important;
             border: 1px solid #333333 !important;
             border-radius: 8px !important;
-        }
-        .stTextArea textarea:focus {
-            border-color: #18A0FB !important;
         }
 
         /* 📊 底部统计：低调暗灰 */
@@ -88,3 +77,12 @@ def apply_pro_style():
         .metric-item b { color: #BBBBBB; }
     </style>
     """, unsafe_allow_html=True)
+
+def render_unified_sidebar(counts_dict):
+    with st.sidebar:
+        st.markdown("<br>" * 10, unsafe_allow_html=True)
+        st.markdown('<div class="metric-footer">', unsafe_allow_html=True)
+        st.caption("📦 仓库快照")
+        for label, val in counts_dict.items():
+            st.markdown(f'<div class="metric-item"><span>{label}:</span><b>{val}</b></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
