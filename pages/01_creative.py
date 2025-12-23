@@ -93,16 +93,29 @@ with col_gallery:
                 if st.button(f"🗑️ 删除选中项", type="primary", use_container_width=True):
                     remaining = [w for w in words if w not in selected_items]
                     save_to_github(WAREHOUSE[cat], remaining); st.rerun()
-    else:
+else:
         insps = get_github_data(GALLERY_FILE)
         if insps:
             sel_insps = []
             with st.container(height=500, border=True):
                 for i in insps:
-                    if st.checkbox(i, key=f"del_i_{hash(i)}"): sel_insps.append(i)
-            if sel_insps and st.button("🗑️ 删除勾选灵感", type="primary"):
-                remaining = [i for i in insps if i not in sel_insps]
-                save_to_github(GALLERY_FILE, remaining); st.rerun()
+                    # 这里的 Key 要确保唯一
+                    if st.checkbox(i, key=f"lib_insp_{hash(i)}"): 
+                        sel_insps.append(i)
+            
+            if sel_insps:
+                # 🚀 新增功能 1：送去润色
+                if st.button("✨ 选中项送去润色", use_container_width=True):
+                    # 把选中的库内灵感存入“已选方案”列表，并触发页面重置
+                    st.session_state.selected_prompts = sel_insps
+                    st.session_state.polished_text = "" # 清空旧的润色结果
+                    st.rerun()
+                
+                # 功能 2：删除
+                if st.button("🗑️ 删除勾选灵感", type="primary", use_container_width=True):
+                    remaining = [i for i in insps if i not in sel_insps]
+                    save_to_github(GALLERY_FILE, remaining)
+                    st.rerun()
 
 # --- 左侧：核心生成区 ---
 with col_main:
