@@ -93,28 +93,18 @@ with col_gallery:
                         if not is_working and i not in st.session_state.selected_prompts:
                             st.session_state.selected_prompts.append(i)
 
-# --- 📜 激发历史区 (位于仓库下方) ---
+# 📜 右侧历史区 (确保缩进对齐 with col_gallery:)
     st.divider()
     st.subheader("📜 历史档案")
     if st.session_state.history_log:
         with st.container(height=400, border=True):
             for h_idx, h_text in enumerate(st.session_state.history_log):
-                # 如果历史记录在已选中列表里，就勾选它
-                is_selected = h_text in st.session_state.selected_prompts
-                if st.checkbox(f"历史 {len(st.session_state.history_log)-h_idx}: {h_text}", 
-                               key=f"h_log_{h_idx}_{abs(hash(h_text))}", 
-                               value=is_selected,
-                               disabled=is_working):
-                    if not is_working:
-                        if h_text not in st.session_state.selected_prompts:
-                            st.session_state.selected_prompts.append(h_text)
+                # 勾选历史自动进入待选区
+                is_checked = h_text in st.session_state.selected_prompts
+                if st.checkbox(f"备选 {h_idx+1}: {h_text}", key=f"h_l_{h_idx}", value=is_checked, disabled=is_working):
+                    if not is_working and h_text not in st.session_state.selected_prompts:
+                        st.session_state.selected_prompts.append(h_text)
                         st.rerun()
-        
-        if st.button("🗑️ 清空所有历史", use_container_width=True, disabled=is_working):
-            st.session_state.history_log = []
-            st.rerun()
-    else:
-        st.caption("暂无历史记录")
 
 # --- 左侧：核心生成区 ---
 with col_main:
