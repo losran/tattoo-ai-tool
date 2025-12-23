@@ -15,18 +15,19 @@ WAREHOUSE_CONFIG = {
     "Usage": "data/usage.txt"
 }
 
+# --- 修改 load_db 的返回结构 ---
 def load_db():
     if os.path.exists(JSON_DB_PATH):
         with open(JSON_DB_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # 💡 核心修复：如果发现是旧格式，自动强制升级为新格式
-            if "words" not in data:
-                return {
-                    "words": {cat: [] for cat in WAREHOUSE_CONFIG.keys()},
-                    "templates": {"完全随机模式": {"pref_vibe": [], "pref_target": [], "boost": 1.0}}
+            # 补齐字段
+            if "prompts" not in data:
+                data["prompts"] = {
+                    "tagger_system": "你是一个纹身审美专家。请分析词汇的视觉调性。",
+                    "tagger_user": "分析词汇: '{word}'\n1. 调性(vibe): 从[cute, healing, dark, hardcore, minimalist, cyberpunk, geometric]选一个最贴切的。\n2. 人群(target): 从[male, female, unisex]选一个。\n只返回JSON: {'vibe': 'xxx', 'target': 'xxx'}"
                 }
             return data
-    return {"words": {cat: [] for cat in WAREHOUSE_CONFIG.keys()}, "templates": {}}
+    return {"words": {}, "templates": {}, "prompts": {}}
 
 def save_db(data):
     os.makedirs("data", exist_ok=True)
