@@ -12,7 +12,18 @@ def load_db():
     with open("data/creative_db.json", "r", encoding="utf-8") as f:
         return json.load(f)
 
-db = load_db()
+# pages/03_dashboard.py
+
+def load_db():
+    path = "data/creative_db.json"
+    # ✨ 新增保底逻辑
+    if not os.path.exists(path):
+        # 如果文件不存在，先创建一个基础结构的字典
+        default_db = {"Subject": [], "Action": [], "Style": [], "Mood": [], "Usage": []}
+        return default_db
+    
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 # 2. 将复杂 JSON 转换为表格格式进行编辑
 rows = []
