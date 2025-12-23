@@ -72,4 +72,129 @@ with btn_col2:
 
 # --- 7. 主布局结构 ---
 if st.session_state.is_open:
-    # 💡 增加中间宽度比例，左右
+    # 💡 增加中间宽度比例，左右更平衡
+    col_main, col_right = st.columns([5, 2]) 
+else:
+    col_main = st.container()
+
+# === 中间：核心工作台 (接入 AI 逻辑) ===
+with col_main:
+    st.title("⚡ 智能入库")
+    
+    # 输入框 (绑定 input_val 以便点选填入)
+    user_text = st.text_area("提示词编辑区", value=st.session_state.input_val, height=300, label_visibility="collapsed")
+    st.session_state.input_val = user_text
+
+    # 💡 关键修改：把原本在最底部的按钮挪到输入框正下方
+    if st.button("🚀 开始 AI 拆解", type="primary", use_container_width=True):
+        if user_text:
+            with st.spinner("DeepSeek 正在解析五维结构..."):
+                prompt = f"""
+                你是一位【强迫症级别的关键词拆解师】。
+                请将用户的描述【粉碎】为最细小的独立中文标签，填入五维模型。
+
+                【拆解死命令 - 必须遵守】：
+                1. **拒绝长短语**：绝对禁止出现“液态金属质感的兔子”这种长句。必须拆解为：兔子, 液态金属,质感。
+                2. **原子化原则**：每个标签只能包含 1 个核心词汇（名词/形容词分开）。
+                3. **强制分隔**：同一个分类下的不同元素，必须用【中文逗号】隔开。
+                4. **纯中文**：输出必须 100% 为中文。
+
+                【五维模型定义】：
+                1. Subject (主体)：把主体、配件、材质全部拆开 (例：兔子, 机械臂, 金属, 荧光管)
+                2. Action (动态)：把动作、状态拆开 (例：悬浮, 奔跑, 缠绕, 破碎)
+                3. Style (风格)：把流派、技法拆开 (例：赛博朋克, 极简, 矢量, 故障风)
+                4. Mood (氛围)：情绪形容词 (例：冷酷, 迷幻, 宁静, 诡异)
+                5. Usage (部位)：身体部位 (例：手臂, 耳后, 脚踝)
+
+                【原文】：{user_text}
+
+                【输出格式要求】：
+                Subject:关键词1, 关键词2, 关键词3|Action:关键词1, 关键词2|Style:关键词1...
+                (注意：用|分隔分类，用逗号分隔同类下的多个词，不要换行)
+                """
+                try:
+                    res = client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.1
+                    ).choices[0].message.content
+                    
+                    # 解析逻辑 (保持不变)
+                    parsed = []
+                    clean = res.replace("**", "").replace("\n", "|").replace("：", ":")
+                    for item in clean.split("|"):
+                        if ":" in item:
+                            cat, val = item.split(":", 1)
+                            for key in FILES.keys():
+                                if key.lower() in cat.lower():
+                                    for w in val.replace(",", "/").split("/"):
+                                        w = w.strip()
+                                        if w and w not in ["无", "N/A"]: parsed.append({"cat": key, "val": w})
+                    st.session_state.ai_results = parsed
+                    st.rerun()
+                except Exception as e: st.error(str(e))
+
+    st.divider()
+
+    # AI 预览结果区
+    if st.session_state.ai_results:
+        st.markdown("#### AI 拆解预览")
+        st.caption("勾选确认入库：")
+        
+        # 收集选中的
+        selected_to_save = []
+        
+        # 按分类显示预览
+        for cat in FILES.keys():
+            items = [x for x in st.session_state.ai_results if x['cat'] == cat]
+            if items:
+                st.markdown(f"**{cat}**")
+                cols = st.columns(4)
+                for i, item in enumerate(items):
+                    with cols[i % 4]:
+                        if st.checkbox(item['val'], value=True, key=f"new_{item['val']}_{i}"):
+                            selected_to_save.append(item)
+        
+        st.write("")
+        c_save, c_clear = st.columns([1, 4])
+        if c_save.button("📥 一键入库", type="primary", use_container_width=True):
+            for item in selected_to_save:
+                cat = item['cat']
+                if item['val'] not in st.session_state.db[cat]:
+                    st.session_state.db[cat].append(item['val'])
+                    sync_data(FILES[cat], st.session_state.db[cat])
+            st.session_state.ai_results = []
+            st.success("已同步至 GitHub！")
+            time.sleep(1)
+            st.rerun()
+            
+        if c_clear.button("清空预览", use_container_width=True):
+            st.session_state.ai_results = []
+            st.rerun()
+
+# === 右侧：仓库管理 (接入真实 GitHub 数据) ===
+if st.session_state.is_open:
+    with col_right:
+        st.markdown("### 📦 仓库管理")
+        cat_view = st.selectbox("类型", list(FILES.keys()), label_visibility="collapsed")
+        
+        current_words = st.session_state.db.get(cat_view, [])
+        st.write("")
+        
+        if current_words:
+            with st.container(height=700): # 💡 调高一点，看得更爽
+                for idx, w in enumerate(current_words):
+                    t_col, x_col = st.columns([5, 1.2])
+                    with t_col:
+                        if st.button(f" {w}", key=f"add_{cat_view}_{idx}", use_container_width=True):
+                            st.session_state.input_val += f" {w}"
+                            st.rerun()
+                    with x_col:
+                        if st.button("✕", key=f"del_{cat_view}_{idx}", use_container_width=True):
+                            new_list = [x for x in current_words if x != w]
+                            st.session_state.db[cat_view] = new_list
+                            sync_data(FILES[cat_view], new_list)
+                            st.toast(f"已删除: {w}")
+                            st.rerun()
+        else:
+            st.caption("该分类暂无数据")
