@@ -25,33 +25,19 @@ WAREHOUSE = {
 }
 GALLERY_FILE = "gallery/inspirations.txt"
 
-# --- 2. 核心 AI 选词引擎 (直接意图理解) ---
+# --- 2. 核心 AI 选词引擎 ---
 def smart_sample_with_ai(category, user_intent, inventory):
-    """
-    category: 类别 (Subject/Action等)
-    user_intent: 输入框写的“目的”
-    inventory: 从 GitHub 抓下来的 TXT 词库列表
-    """
     if not user_intent or not user_intent.strip():
-        # 如果没写目的，就纯随机，不浪费 API
         return random.choice(inventory) if inventory else "空"
     
-    prompt = f"""
-    任务：从下面的词库中挑选一个最符合用户“意图”的词汇。
-    意图：{user_intent}
-    分类：{category}
-    仓库词库：{inventory}
-    
-    注意：只返回选中的词汇本身，严禁任何解释或标点。
-    """
+    prompt = f"意图：{user_intent}\n分类：{category}\n词库：{inventory}\n任务：选一个最符合意图的词。只返回词汇本身。"
     try:
         res = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3 # 降低随机性，保证匹配度
+            temperature=0.3
         )
         picked_word = res.choices[0].message.content.strip()
-        # 兜底逻辑：如果 AI 抽风编词，强制在库里选一个
         return picked_word if picked_word in inventory else random.choice(inventory)
     except:
         return random.choice(inventory)
@@ -78,10 +64,9 @@ def save_to_github(path, data_list):
         return True
     except: return False
 
-# --- 4. UI 布局与状态初始化 ---
+# --- 4. UI 布局与初始化 ---
 st.set_page_config(layout="wide", page_title="Creative Engine")
 
-# 初始化 Session State
 for key in ['selected_prompts', 'generated_cache', 'polished_text', 'manual_editor']:
     if key not in st.session_state:
         st.session_state[key] = "" if ('editor' in key or 'text' in key) else []
@@ -89,7 +74,7 @@ for key in ['selected_prompts', 'generated_cache', 'polished_text', 'manual_edit
 st.title("🎨 创意引擎")
 col_main, col_gallery = st.columns([5, 2.5])
 
-# --- 右侧：仓库管理 (保持不动) ---
+# --- 右侧：仓库管理 ---
 with col_gallery:
     st.subheader("📦 仓库管理")
     mode = st.radio("模式", ["素材仓库", "灵感成品"], horizontal=True)
@@ -123,41 +108,35 @@ with col_gallery:
 with col_main:
     col_cfg1, col_cfg2 = st.columns(2)
     with col_cfg1: num = st.slider("生成方案数量", 1, 10, 6)
-    with col_cfg2: 
-    chaos_level = st.slider("🎨 审美光谱：🌸 可爱 — 🐉 日式 — 📐 欧美极简", 0, 100, 55)
+    # 💡 审美光谱滑块修改
+    with col_cfg2: chaos_level = st.slider("🎨 审美光谱：🌸 可爱 — 🐉 日式 — 📐 欧美极简", 0, 100, 55)
     
-    intent_input = st.text_area("✍️ 组合意图输入框 (AI将根据此内容从库中选词)", value=st.session_state.manual_editor, placeholder="例如：想要一个治愈女生的简约风格...")
+    intent_input = st.text_area("✍️ 组合意图输入框", value=st.session_state.manual_editor)
     st.session_state.manual_editor = intent_input
 
     if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
         st.session_state.polished_text = "" 
         st.session_state.generated_cache = []
         st.session_state.selected_prompts = []
-        
-        # 实时抓取最新的仓库数据
-        with st.spinner("正在同步仓库并理解意图..."):
-            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
+        db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
         
         if not any(db_all.values()):
             st.error("⚠️ 仓库是空的！")
         else:
-            with st.spinner("AI 正在为你精准挑词..."):
+            with st.spinner("AI 正在挑选..."):
                 for _ in range(num):
-                    # 💡 核心逻辑：直接把你的输入框内容丢给 AI 选词
                     s = smart_sample_with_ai("Subject", intent_input, db_all["Subject"])
                     a = smart_sample_with_ai("Action", intent_input, db_all["Action"])
                     st_val = smart_sample_with_ai("Style", intent_input, db_all["Style"])
                     m = smart_sample_with_ai("Mood", intent_input, db_all["Mood"])
                     u = smart_sample_with_ai("Usage", intent_input, db_all["Usage"])
-                    
                     combined_p = f"{s}，{a}，{st_val}风格，{m}氛围，纹在{u}"
                     st.session_state.generated_cache.append(combined_p)
             st.rerun()
 
-    # 3. 🎲 方案展示与筛选
     if st.session_state.generated_cache:
         st.divider()
-        st.subheader("🎲 方案筛选 (点击卡片进行调配)")
+        st.subheader("🎲 方案筛选")
         cols = st.columns(2)
         for idx, p in enumerate(st.session_state.generated_cache):
             with cols[idx % 2]:
@@ -167,57 +146,42 @@ with col_main:
                     else: st.session_state.selected_prompts.append(p)
                     st.rerun()
 
-    # 4. ✨ 确认方案并开始润色
-# 4. ✨ 确认方案并开始润色 (请确保这一行前面的缩进为 4 个空格)
+    # ✨ 核心缩进正确版润色逻辑
     if st.session_state.selected_prompts and not st.session_state.polished_text:
         st.divider()
         if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
             with st.spinner("AI 正在根据审美光谱注入灵魂..."):
                 combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
                 
-                # --- 🎨 审美光谱动态逻辑：0-35可爱, 36-75日式, 76-100欧美极简 ---
+                # --- 🎨 审美光谱动态逻辑 ---
                 if chaos_level <= 35:
-                    style_vibe = "【可爱治愈系】。风格偏向东亚萌系、马卡龙配色、软糯线条。文案要像甜品一样软化人心，充满生活的小确幸。"
-                    visual_focus = "侧重于描述图案的软萌感、圆润的轮廓，以及它如何让皮肤变得像绘本一样温柔。"
+                    style_vibe = "【可爱治愈系】。风格偏向东亚萌系、马卡龙配色、软糯线条。"
+                    visual_focus = "侧重于描述图案的软萌感、圆润轮廓。"
                     narrative_type = "陪伴"
                 elif chaos_level <= 75:
-                    style_vibe = "【日式传统/Old School】。强调工整的重彩、经典的浮世绘或复古构图。文案要带有一种沉稳的文化力量感和匠心气息。"
-                    visual_focus = "侧重于描述黑线的张力、色彩的浓郁，以及图案在呼吸间展现出的东方底蕴。"
+                    style_vibe = "【日式传统/Old School】。强调工整重彩、经典浮世绘复古构图。"
+                    visual_focus = "侧重于描述黑线张力、色彩浓郁。"
                     narrative_type = "沉淀"
                 else:
-                    style_vibe = "【欧美极简/硬核先锋】。风格偏向加粗的单黑线条、几何解构、极高对比度。文案要干脆利落、冷峻、富有现代工业感。"
-                    visual_focus = "侧重于描述线条的绝对力量、留白的艺术，以及图案如何作为一种‘强硬的身体宣言’存在。"
+                    style_vibe = "【欧美极简/硬核先锋】。风格偏向加粗单黑线条、几何解构。"
+                    visual_focus = "侧重于描述线条的绝对力量、留白艺术。"
                     narrative_type = "破局"
 
-                # --- 注入灵魂的艺术咒语 ---
-                system_prompt = f"""你是一位全球顶尖的【刺青艺术策展人】。你的任务是将标签转化为对应特定审美的艺术文案。
-                【当前审美坐标】：{style_vibe}
-                【视觉表现重点】：{visual_focus}
-                【风格强度】：{chaos_level}/100
-                
-                要求：
-                1. **强制转化**：文案必须自然融入“纹身贴”这三个字，提升其作为“瞬时皮肤艺术”质感。
-                2. **场景叙事**：请以“{narrative_type}”为情感基调进行扩写。
-                3. **格式**：保持“方案X：[扩写内容]”的形式。"""
+                system_prompt = f"你是一位纹身艺术策展人。当前审美坐标：{style_vibe}。表现重点：{visual_focus}。风格强度：{chaos_level}/100。请以‘{narrative_type}’为基调扩写。必须融入‘纹身贴’。格式：方案X：[扩写内容]"
                 
                 try:
                     res = client.chat.completions.create(
                         model="deepseek-chat",
-                        messages=[
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": combined_input}
-                        ],
+                        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": combined_input}],
                         temperature=0.7 + (chaos_level / 200)
                     ).choices[0].message.content
                     st.session_state.polished_text = res
                     st.rerun()
                 except Exception as e:
-                    st.error(f"润色失败: {e}")}")
+                    st.error(f"润色失败: {e}")
 
-    # 5. 展示润色成品
     if st.session_state.polished_text:
-        st.divider()
-        st.subheader("🎨 艺术润色成品")
+        st.divider(); st.subheader("🎨 艺术润色成品")
         final_content = st.text_area("文案预览：", st.session_state.polished_text, height=400)
         c_btn1, c_btn2, c_btn3 = st.columns(3)
         with c_btn1:
@@ -231,6 +195,4 @@ with col_main:
                 st.switch_page("pages/02_automation.py")
         with c_btn3:
             if st.button("🔄 重新调配", use_container_width=True):
-                st.session_state.polished_text = ""
-                st.session_state.selected_prompts = []
-                st.rerun()
+                st.session_state.polished_text = ""; st.session_state.selected_prompts = []; st.rerun()
