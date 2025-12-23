@@ -41,6 +41,7 @@ st.title("🎮 仓库权重中控台")
 with st.expander("🛠️ 修复与初始化：将 TXT 导入新版 JSON", expanded=True):
     st.warning("如果你看到 KeyError 报错，请点击下方按钮重新初始化。")
     if st.button("🚀 执行初始化/数据修复"):
+        
         new_db = {
             "words": {cat: [] for cat in WAREHOUSE_CONFIG.keys()},
             "templates": {"少女心系列 (Sell_to_girls)": {"pref_vibe": ["healing", "cute"], "pref_target": ["female"], "boost": 6.0}}
@@ -52,6 +53,53 @@ with st.expander("🛠️ 修复与初始化：将 TXT 导入新版 JSON", expan
                     new_db["words"][cat] = [{"val": l, "weight_bonus": 1.0, "tags": {"vibe": "general", "target": "all"}} for l in lines]
         save_db(new_db)
         st.success("数据已成功升级为新格式！")
+        st.rerun()
+
+# --- 定位：在“执行初始化/数据修复”按钮的 if 逻辑结束后插入 ---
+st.divider()
+st.subheader("🤖 AI 自动语义洗标")
+st.caption("让 AI 扫描全库，自动根据词义填充调性标签（vibe）和人群倾向（target）")
+
+if st.button("🪄 启动 AI 一键全量打标", type="secondary", use_container_width=True):
+    from openai import OpenAI
+    # 初始化客户端 (确保 secrets 里有 key)
+    ai_client = OpenAI(api_key=st.secrets["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
+    
+    with st.spinner("AI 正在解析词库灵魂... 请稍候..."):
+        db = load_db()
+        words_structure = db.get("words", {})
+        count = 0
+        
+        for cat, items in words_structure.items():
+            for item in items:
+                # 只对还是 general 的词进行处理，避免浪费次数
+                if item["tags"].get("vibe") == "general":
+                    word = item["val"]
+                    
+                    # 💡 这是调教 AI 的核心咒语
+                    sys_prompt = "你是一个纹身审美专家。请分析词汇的视觉调性。"
+                    user_prompt = f"""分析词汇: '{word}'
+                    1. 调性(vibe): 从[cute, healing, dark, hardcore, minimalist, cyberpunk, geometric]选一个最贴切的。
+                    2. 人群(target): 从[male, female, unisex]选一个。
+                    只返回JSON: {{"vibe": "xxx", "target": "xxx"}}"""
+                    
+                    try:
+                        response = ai_client.chat.completions.create(
+                            model="deepseek-chat",
+                            messages=[
+                                {"role": "system", "content": sys_prompt},
+                                {"role": "user", "content": user_prompt}
+                            ],
+                            response_format={ 'type': 'json_object' }
+                        )
+                        new_tags = json.loads(response.choices[0].message.content)
+                        item["tags"].update(new_tags)
+                        count += 1
+                    except Exception as e:
+                        continue
+        
+        save_db(db)
+        st.success(f"✅ AI 进化完成！已自动识别并更新 {count} 个词汇的标签。")
         st.rerun()
 
 # --- 3. 核心调控区 ---
@@ -69,5 +117,35 @@ with tab_words:
             st.success("保存成功")
 
 with tab_templates:
-    st.info("在这里可以管理不同模板的加分逻辑。")
-    # 此处省略部分模板编辑逻辑，重点先保住词库可用
+    # --- 定位：替换 with tab_templates: 内部的所有内容 ---
+
+    st.subheader("🎯 意图模板可视化调控")
+    
+    # 获取现有模板
+    tpl_data = db.get("templates", {})
+    
+    # 格式化成表格，方便你编辑
+    tpl_rows = []
+    for name, cfg in tpl_data.items():
+        tpl_rows.append({
+            "模板名称": name,
+            "偏好标签(用逗号隔开)": ",".join(cfg.get("pref_vibe", [])),
+            "权重放大倍率": cfg.get("boost", 1.0)
+        })
+    
+    df_tpl = pd.DataFrame(tpl_rows)
+    
+    # 💡 在这里直接改、直接加行，就是加模板！
+    edited_tpl = st.data_editor(df_tpl, num_rows="dynamic", use_container_width=True)
+    
+    if st.button("🚀 确认并同步模板配置", type="primary"):
+        new_templates = {}
+        for _, row in edited_tpl.iterrows():
+            new_templates[row["模板名称"]] = {
+                "pref_vibe": [i.strip() for i in str(row["偏好标签(用逗号隔开)"]).split(",") if i.strip()],
+                "pref_target": ["unisex"], # 默认中性
+                "boost": float(row["权重放大倍率"])
+            }
+        db["templates"] = new_templates
+        save_db(db)
+        st.success("配置已同步！去创意引擎看看下拉框吧。")
