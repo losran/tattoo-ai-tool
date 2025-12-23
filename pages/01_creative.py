@@ -153,55 +153,58 @@ with col_main:
             if st.button("🗑️ 清空看板并强行解锁", use_container_width=True, type="secondary"):
                 st.session_state.generated_cache = []; st.session_state.selected_prompts = []; st.session_state.polished_text = ""; st.rerun()
 
-# --- 昨晚极简增强版：保留双星号，植入生词与物理前缀 ---
-if st.session_state.selected_prompts:
-    if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
-        with st.spinner("正在构思..."):
-            # A. 物理前缀：确保每条提示词都带上生词和基础要求
-            style_tags = {
-                "可爱柔美": "Vector Art, thick rounded outlines, pastel flat colors, sticker art",
-                "轻盈水彩": "Hand-drawn Watercolor, ink bleed effect, white negative space",
-                "日式传统": "Ukiyo-e Style, bold black calligraphy lines, flat traditional colors",
-                "欧美极简": "Linework Tattoo, geometric abstraction, single weight line",
-                "自由盲盒": "Pop Art, mixed media collage, glitch art"
-            }.get(style_tone, "Vector Art")
+# --- 4. 润色区：纯中文词组语境优化 ---
+if st.session_state.selected_prompts and not st.session_state.polished_text:
+    st.divider()
+    if st.button("✨ 确认方案并开始艺术润色", type="primary", use_container_width=True):
+        st.session_state.generated_cache = [] 
+        with st.spinner("正在优化中文语境..."):
+            try:
+                # 将选中的方案拼成列表发给 AI
+                combined = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
+                
+                # 核心指令：纯中文处理，仅修饰语境
+                system_instruction = f"""
+                你是一个纹身艺术顾问。
+                【任务】：将用户的中文词组，在保持原词不变的基础上，润色成一段语境通顺、高级、富有艺术感的中文描述。
+                【要求】：
+                1. 必须输出纯中文，严禁翻译成英文！
+                2. 每一行必须以 '**方案X：**' 开头，后面跟着润色后的内容。
+                3. 风格参考：{style_tone}，混乱度：{chaos_level}/100。
+                4. 不要加模特，不要加摄影词，就是让这一组词连成一句通顺好听的话。
+                """
 
-            # B. 极简指令：强制要求 AI 保持 **方案X：** 格式
-            combined = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
-            
-            # 这里是关键：在指令里直接要求 AI 把你的生词和前缀吞进去
-            system = (
-                f"你是一个纹身艺术顾问。将标签转化为中文提示词。混乱度{chaos_level}/100。\n"
-                f"【强制格式】：'**方案X：** (Masterpiece), (Tattoo Sticker:1.4), white background, {style_tags}, 内容'\n"
-                f"【要求】：必须保留双星号，必须分行。不要输出英文之外的解释。"
-            )
-            
-            res = client.chat.completions.create(
-                model="deepseek-chat", 
-                messages=[
-                    {"role": "system", "content": system}, 
-                    {"role": "user", "content": combined}
-                ]
-            ).choices[0].message.content
-            
-            st.session_state.polished_text = res
-            st.rerun()
+                res = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": f"请把这些方案润色得更通顺高级：\n{combined}"}
+                    ],
+                    temperature=0.7 # 适中的随机性让文采更好
+                ).choices[0].message.content
 
-# 最终结果展示 (保持你昨晚的代码不变)
+                st.session_state.polished_text = res
+                st.rerun()
+            except Exception as e:
+                st.error(f"润色失败: {e}")
+
+# --- 最终展示区 (锚点分段的关键) ---
 if st.session_state.get('polished_text'):
     st.divider()
     st.subheader("🎨 艺术润色成品")
-    # 强制让预览框更高，方便检查
-    final_content = st.text_area("润色文案预览：", st.session_state.polished_text, height=400)
+    # 这里的 final_content 出来的就是带有 **方案X：** 的中文内容
+    final_content = st.text_area("内容预览：", st.session_state.polished_text, height=350)
     
     c_btn1, c_btn2, c_btn3 = st.columns(3)
     with c_btn1:
         if st.button("💾 存入成品库", use_container_width=True):
             current = get_github_data(GALLERY_FILE)
-            new = [l.strip() for l in final_content.split('\n') if l.strip() and '方案' not in l]
+            # 过滤掉方案字样，只存内容
+            new = [l.strip() for l in final_content.split('\n') if l.strip()]
             current.extend(new); save_to_github(GALLERY_FILE, current); st.success("已存档")
     with c_btn2:
         if st.button("🚀 发送到自动化", type="primary", use_container_width=True):
+            # 将带“方案”锚点的中文文本传给下一页
             st.session_state.auto_input_cache = final_content
             st.switch_page("pages/02_automation.py")
     with c_btn3:
