@@ -1,105 +1,65 @@
-# style_manager.py
-
-import streamlit as st
-
-
-
 def apply_pro_style():
-
     st.markdown("""
-
-    <style>
-
-        /* 1. 锁定背景与隐藏杂物 */
-
-        .stApp { background-color: #0f1014; }
-
-        [data-testid="stHeader"] { background: transparent !important; }
-
-        [data-testid="stHeader"] > div:first-child { display: none !important; }
-
-
-
-        /* 2. 📍 右侧“侧边栏”：镜像左侧样式 */
-
-        [data-testid="column"]:nth-child(2) {
-
-            background-color: #16171d !important;
-
-            border-left: 1px solid #262730 !important;
-
-            padding: 40px 15px !important; /* 顶开一点，给展开按钮留位 */
-
-            height: 100vh !important;
-
-            position: fixed !important;
-
-            right: 0; top: 0; z-index: 99;
-
+        <style>
+        /* 🎨 Figma Dark Mode 精准调色盘 */
+        :root {
+            --figma-bg: #1E1E1E;        /* 主背景：深炭灰 */
+            --figma-sidebar: #2C2C2C;   /* 侧边栏/容器背景 */
+            --figma-border: #444444;    /* 描边颜色 */
+            --figma-text: #E6E6E6;      /* 主文字：浅灰白 */
+            --figma-accent: #18A0FB;    /* Figma 经典蓝（用于点缀） */
+            --figma-hover: #3E3E3E;     /* 悬停态 */
         }
 
-
-
-        /* 3. 📍 极简标签：文字和叉号真正在同一个框里 */
-
-        .tag-pill {
-
-            display: flex;
-
-            align-items: center;
-
-            background: #1a1b23;
-
-            border: 1px solid #262730;
-
-            border-radius: 4px;
-
-            margin-bottom: 6px;
-
-            padding: 2px 10px;
-
-            transition: 0.2s;
-
+        /* 全局背景与文字 */
+        .stApp {
+            background-color: var(--figma-bg);
+            color: var(--figma-text);
         }
 
-        .tag-pill:hover { border-color: #ff4b4b; background: #211d1d; }
+        /* 隐藏报错的亮红色，改为 Figma 警告色（深橘红） */
+        .stException, .element-container div[data-baseweb="notification"] {
+            background-color: #3D2222 !important;
+            color: #FFB4B4 !important;
+            border: 1px solid #603030 !important;
+            border-radius: 6px !important;
+        }
 
+        /* 按钮：深灰色容器 + 细描边 */
+        div.stButton > button {
+            background-color: #2C2C2C !important;
+            color: #FFFFFF !important;
+            border: 1px solid var(--figma-border) !important;
+            border-radius: 6px !important;
+            transition: all 0.2s;
+        }
         
-
-        /* 统一左侧导航字体 */
-
-        [data-testid="stSidebarNav"] ul li div p {
-
-            font-size: 20px !important; font-weight: 600 !important;
-
+        div.stButton > button:hover {
+            border-color: var(--figma-accent) !important;
+            background-color: var(--figma-hover) !important;
         }
 
+        /* 主按钮（激发/润色）：Figma 蓝 */
+        div.stButton > button[kind="primary"] {
+            background-color: var(--figma-accent) !important;
+            border: none !important;
+        }
 
+        /* 输入框样式 */
+        .stTextArea textarea, .stTextInput input {
+            background-color: #2C2C2C !important;
+            color: white !important;
+            border: 1px solid var(--figma-border) !important;
+            border-radius: 4px !important;
+        }
 
-        /* 底部统计状态 */
-
-        .metric-footer { border-top: 1px solid #262730; padding-top: 15px; margin-top: 20px; }
-
-        .metric-item { display: flex; justify-content: space-between; font-size: 13px; color: #8b949e; }
-
-    </style>
-
+        /* 标签/Checkbox 样式：模仿 Figma 图层列表 */
+        .stCheckbox {
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .stCheckbox:hover {
+            background-color: var(--figma-hover);
+        }
+        </style>
     """, unsafe_allow_html=True)
-
-
-
-def render_unified_sidebar(counts_dict):
-
-    with st.sidebar:
-
-        st.markdown("<br>" * 10, unsafe_allow_html=True)
-
-        st.markdown('<div class="metric-footer">', unsafe_allow_html=True)
-
-        st.caption("库存统计")
-
-        for label, val in counts_dict.items():
-
-            st.markdown(f'<div class="metric-item"><span>{label}:</span><b>{val}</b></div>', unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True)
