@@ -12,6 +12,7 @@ loosely scattered arrangement
 排版
 放射
 朝上
+朝下
 朝右
 朝左
 歪着脑袋
