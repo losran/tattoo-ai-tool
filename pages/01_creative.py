@@ -162,30 +162,53 @@ with col_main:
                 st.session_state.generated_cache = []; st.session_state.selected_prompts = []
                 st.rerun()
 
-    # ✨ 确认润色 (触发归档逻辑)
+# --- 🔵 精准加固后的润色逻辑 ---
     if st.session_state.selected_prompts and not st.session_state.polished_text:
         st.divider()
         if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
-            # 🚀 归档判定：把没被选中的扔进右侧历史
-            if st.session_state.generated_cache:
-                abandoned = [p for p in st.session_state.generated_cache if p not in st.session_state.selected_prompts]
-                if abandoned:
-                    st.session_state.history_log = abandoned + st.session_state.history_log
-            
-            # 清理中间桌面
-            st.session_state.generated_cache = [] 
+            # 1. 强制归档：将生成的 cache 中未选中的方案移入 history_log
+            try:
+                if 'generated_cache' in st.session_state and st.session_state.generated_cache:
+                    abandoned = [p for p in st.session_state.generated_cache if p not in st.session_state.selected_prompts]
+                    if abandoned:
+                        # 确保 history_log 是列表并追加
+                        if not isinstance(st.session_state.history_log, list):
+                            st.session_state.history_log = []
+                        st.session_state.history_log = abandoned + st.session_state.history_log
+                    
+                    # 清空当前展示，完成“迁移”视觉效果
+                    st.session_state.generated_cache = []
+            except Exception as e:
+                st.error(f"归档过程出错: {e}")
 
+            # 2. 执行润色
             with st.spinner("AI 注入灵魂中..."):
-                combined_input = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
-                if chaos_level <= 35: v, f, n = "可爱治愈", "软萌圆润", "陪伴"
-                elif chaos_level <= 75: v, f, n = "日式传统", "黑线重彩", "沉淀"
-                else: v, f, n = "欧美极简", "力量解构", "破局"
-                system_prompt = f"刺青策展人视角。风格：{v}，强度：{chaos_level}。融入‘纹身贴’。格式：方案X：[内容]"
                 try:
-                    res = client.chat.completions.create(model="deepseek-chat", messages=[{"role":"system","content":system_prompt},{"role":"user","content":combined_input}], temperature=0.8).choices[0].message.content
-                    st.session_state.polished_text = res
+                    # 构造纯净的输入文本
+                    input_text = "\n".join([f"方案{idx+1}: {p}" for idx, p in enumerate(st.session_state.selected_prompts)])
+                    
+                    # 审美光谱映射
+                    if chaos_level <= 35: v, f, n = "可爱治愈", "软萌圆润", "陪伴"
+                    elif chaos_level <= 75: v, f, n = "日式传统", "黑线重彩", "沉淀"
+                    else: v, f, n = "欧美极简", "力量解构", "破局"
+                    
+                    sys_p = f"你是一位资深刺青策展人。风格基调：{v}。请将方案润色为极具艺术感的纹身描述。"
+                    
+                    response = client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[
+                            {"role": "system", "content": sys_p},
+                            {"role": "user", "content": input_text}
+                        ],
+                        temperature=0.7,
+                        timeout=30 # 增加超时保护
+                    )
+                    
+                    st.session_state.polished_text = response.choices[0].message.content
                     st.rerun()
-                except: st.error("润色失败")
+                except Exception as e:
+                    st.error(f"润色失败原因: {e}")
+                    # 如果失败了，建议不要清空 generated_cache，让用户可以重试
 
     if st.session_state.polished_text:
         st.divider(); st.subheader("🎨 艺术润色成品")
