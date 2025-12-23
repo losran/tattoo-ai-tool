@@ -238,16 +238,24 @@ with col_main:
                         else: st.session_state.selected_prompts.append(p)
                         st.rerun()
         
+# --- 底部功能按钮区：重塑视觉区分 ---
         c_tool1, c_tool2 = st.columns(2)
         with c_tool1:
-            if st.button("💾 存入成品库", use_container_width=True, disabled=is_working):
+            # 使用 type="secondary" (次要按钮) 或者加一个明显的图标，并减小宽度感
+            if st.button("💾 确认存档并存入成品库", use_container_width=True, type="secondary", disabled=is_working):
                 if st.session_state.selected_prompts:
                     current = get_github_data(GALLERY_FILE)
                     current.extend(st.session_state.selected_prompts)
-                    save_to_github(GALLERY_FILE, current); st.success("已存档")
+                    if save_to_github(GALLERY_FILE, current):
+                        st.toast("✅ 已成功同步至 GitHub 成品库")
+                    else:
+                        st.error("同步失败，请检查 Token 权限")
+
         with c_tool2:
-            if st.button("🗑️ 清除当前", use_container_width=True, disabled=is_working):
-                st.session_state.generated_cache = []; st.session_state.selected_prompts = []
+            # 清除按钮通常建议使用更轻量的视觉，或者加上警告色图标
+            if st.button("🗑️ 一键清空当前看板", use_container_width=True, type="secondary", disabled=is_working):
+                st.session_state.generated_cache = []
+                st.session_state.selected_prompts = []
                 st.rerun()
 
 # --- 🔵 润色逻辑：基于风格调性与意图融合 ---
