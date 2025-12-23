@@ -119,30 +119,34 @@ with col_main:
     intent_input = st.text_area("✍️ 组合意图输入框", value=st.session_state.manual_editor, disabled=is_working)
     st.session_state.manual_editor = intent_input
 
-    # ✅ 新逻辑：一次性请求，极速响应
-    if st.button("🔥 激发创意组合", type="primary", use_container_width=True):
-        with st.spinner("AI 正在全局搜索最佳组合..."):
-            # 1. 构造一个全局 Prompt
-            all_inventory = {k: random.sample(v, min(len(v), 30)) for k, v in db_all.items()} # 抽样缩小范围
-            prompt = f"""意图：{intent_input}
-            任务：从以下词库中，一次性组合出 {num} 组纹身方案。
-            词库：{all_inventory}
-            要求：每组方案必须包含 主体、动作、风格、氛围、部位。
-            只返回方案列表，每行一组，格式：主体，动作，风格，氛围，部位"""
+    # 💡 极速激发逻辑：一次性请求，彻底告别转圈
+    if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
+        db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
+        with st.spinner("AI 正在全局匹配最优组合..."):
+            # 缩小词库范围防止 Token 爆炸
+            sample_db = {k: random.sample(v, min(len(v), 20)) for k, v in db_all.items()}
             
+            # 核心：让 AI 一次性生成所有方案
+            fast_prompt = f"""
+            意图：{intent_input}
+            词库参考：{sample_db}
+            任务：请从词库中挑选词汇，直接组合成 {num} 个纹身方案。
+            要求：每个方案格式必须为“主体，动作，风格，氛围，部位”。
+            禁止多余解释，只需返回方案列表，每行一个。
+            """
             try:
-                # 2. 只请求 1 次 API
+                # 只发一次请求，省去 50 次循环
                 res = client.chat.completions.create(
-                    model="deepseek-chat", 
-                    messages=[{"role": "user", "content": prompt}],
+                    model="deepseek-chat",
+                    messages=[{"role": "user", "content": fast_prompt}],
                     temperature=0.7
                 )
-                raw_results = res.choices[0].message.content.strip().split('\n')
-                # 3. 结果直接入库
-                st.session_state.generated_cache = [r.strip() for r in raw_results if r.strip()][:num]
+                raw_list = res.choices[0].message.content.strip().split('\n')
+                # 清理数据并更新缓存
+                st.session_state.generated_cache = [line.strip() for line in raw_list if "，" in line][:num]
                 st.rerun()
             except Exception as e:
-                st.error(f"激发失败: {e}")
+                st.error(f"激发超时，请重试: {e}")
 
     # 🎲 方案筛选 (中间桌面)
     if st.session_state.generated_cache:
