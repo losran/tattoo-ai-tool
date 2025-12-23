@@ -133,15 +133,19 @@ with col_gallery:
 
 # --- 🔵 左侧：核心生成区 ---
 with col_main:
-    # 1. 顶部控制栏：流派调性 + 创意混乱度
+    # 1. 顶部控制栏：流派调性（点选） + 创意混乱度（滑块）
     col_cfg1, col_cfg2 = st.columns(2)
     with col_cfg1:
-        style_tone = st.select_slider(
-            "🎨 风格调性选择",
+        # 使用 st.pills 或 st.radio 营造点选感
+        style_tone = st.radio(
+            "🎭 风格调性点选",
             options=["自由盲盒", "可爱柔美", "轻盈水彩", "日式传统", "欧美极简"],
-            value="日式传统"
+            horizontal=True,
+            index=3, # 默认选中日式传统
+            help="点击切换不同的视觉灵魂"
         )
     with col_cfg2:
+        # 混乱度保留滑块，因为它属于“程度”调节，更适合拖拽
         chaos_level = st.slider("🌀 创意碰撞 (混乱度)", 0, 100, 50)
 
     # 2. 意图输入
@@ -149,7 +153,8 @@ with col_main:
     st.session_state.manual_editor = intent_input
 
     # 3. 按钮行：左侧激发按钮 + 右侧数量数字
-    col_btn_btn, col_btn_num = st.columns([4, 1]) 
+    # 这里微调比例 [4.2, 1] 让按钮和数字框更贴合
+    col_btn_btn, col_btn_num = st.columns([4.2, 1]) 
     with col_btn_btn:
         execute_button = st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working)
     with col_btn_num:
