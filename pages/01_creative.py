@@ -133,76 +133,93 @@ with col_gallery:
 
 # --- 🔵 左侧：核心生成区 ---
 with col_main:
-    # 1. 顶部控制栏：流派调性 + 创意混乱度
+    # 1. 顶部控制栏：风格调性 + 创意混乱度
     col_cfg1, col_cfg2 = st.columns(2)
     with col_cfg1:
-        # 这里定义 style_tone，确保后端能读到这个名字
         style_tone = st.select_slider(
             "🎨 风格调性选择",
             options=["自由盲盒", "可爱柔美", "轻盈水彩", "日式传统", "欧美极简"],
             value="日式传统"
         )
     with col_cfg2:
-        # 这里定义 chaos_level，后端所有报错都指向这个名字
         chaos_level = st.slider("🌀 创意碰撞 (混乱度)", 0, 100, 50)
 
     # 2. 意图输入
     intent_input = st.text_area("✍️ 组合意图输入框", placeholder="输入关键词，如：宇航员、玫瑰...", height=100)
+    st.session_state.manual_editor = intent_input
 
-    # 3. 按钮行：数量 + 激发按钮
-    col_btn_l, col_btn_r = st.columns([1, 4])
-    with col_btn_l:
+    # 3. 按钮行：左侧激发按钮 + 右侧数量数字
+    col_btn_btn, col_btn_num = st.columns([4, 1]) 
+    with col_btn_btn:
+        execute_button = st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working)
+    with col_btn_num:
         num = st.number_input("数量", 1, 10, 6, label_visibility="collapsed")
-    with col_btn_r:
-        if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
-            # 获取仓库数据
-            db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
+
+    # --- 按钮执行逻辑 ---
+    if execute_button:
+        db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
+        
+        with st.spinner("AI 正在深度调配中..."):
+            has_intent = bool(intent_input.strip())
             
-            with st.spinner("AI 正在深度调配中..."):
-                # --- 核心修复：直接使用上面定义好的变量名 ---
-                has_intent = bool(intent_input.strip())
-                
-                # 确定风格指令
-                if style_tone == "自由盲盒":
-                    style_instruction = "不限风格，极致随机。"
+            # A. 风格指令判定
+            if style_tone == "自由盲盒":
+                style_instruction = "不限风格，极致随机跨界。"
+            else:
+                style_instruction = f"将意图与【{style_tone}】风格强制融合，即使冲突也要做风格化变形。"
+
+            # B. 智能词库采样
+            smart_sample_db = {}
+            for k, v in db_all.items():
+                if has_intent:
+                    try:
+                        smart_sample_db[k] = ai_pre_filter(k, intent_input, v, limit=15)
+                    except:
+                        smart_sample_db[k] = random.sample(v, min(len(v), 15))
                 else:
-                    style_instruction = f"将意图与【{style_tone}】风格强制融合。"
+                    s_size = int(15 + (chaos_level / 100) * 20)
+                    smart_sample_db[k] = random.sample(v, min(len(v), s_size))
 
-                # 智能采样
-                smart_sample_db = {}
-                for k, v in db_all.items():
-                    if has_intent:
-                        try:
-                            smart_sample_db[k] = ai_pre_filter(k, intent_input, v, limit=15)
-                        except:
-                            smart_sample_db[k] = random.sample(v, min(len(v), 15))
-                    else:
-                        # 统一使用 chaos_level
-                        s_size = int(15 + (chaos_level / 100) * 20)
-                        smart_sample_db[k] = random.sample(v, min(len(v), s_size))
+            # C. 核心指令包 (强力纠正格式，严禁 JSON)
+            fast_prompt = f"""
+            任务：作为纹身策展大师，生成 {num} 个方案。
+            意图：{intent_input if has_intent else '完全随机灵感'}
+            调性：{style_instruction}
+            混乱度：{chaos_level}/100
 
-                # 发送指令给 AI (fast_prompt)
-                fast_prompt = f"""
-                任务：生成 {num} 个方案。
-                意图：{intent_input if has_intent else '随机灵感'}
-                调性：{style_instruction}
-                脑洞：{chaos_level}/100
-                参考词库：{smart_sample_db}
-                要求：主体，动作，风格，氛围，部位。只返回列表。
-                """
+            【硬性要求】：
+            1. 严禁返回任何大括号{{}}、严禁返回JSON格式、严禁返回“主体：”等键值对！
+            2. 必须严格遵守下方示例格式，每行只有5个元素，用中文逗号“，”隔开。
+            3. 只输出列表，不准有任何解释。
 
-                try:
-                    res = client.chat.completions.create(
-                        model="deepseek-chat",
-                        messages=[{"role": "user", "content": fast_prompt}],
-                        temperature= 0.4 + (chaos_level / 100) * 0.5
-                    )
-                    raw_content = res.choices[0].message.content.strip()
-                    raw_list = raw_content.split('\n')
-                    st.session_state.generated_cache = [line.strip() for line in raw_list if "，" in line or "," in line][:num]
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"激发失败: {e}")
+            【格式示例】：
+            机械心脏，跳动，赛博朋克，压抑，胸口
+            
+            【参考词库】：
+            {smart_sample_db}
+
+            【立即开始生成列表】：
+            """
+
+            # D. 发送请求
+            try:
+                res = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[{"role": "user", "content": fast_prompt}],
+                    temperature= 0.4 + (chaos_level / 100) * 0.5
+                )
+                raw_content = res.choices[0].message.content.strip()
+                
+                # E. 强力清洗数据，确保卡片显示正常
+                raw_list = raw_content.split('\n')
+                st.session_state.generated_cache = [
+                    line.replace('"', '').replace('{', '').replace('}', '').strip() 
+                    for line in raw_list 
+                    if "，" in line and "{" not in line
+                ][:num]
+                st.rerun()
+            except Exception as e:
+                st.error(f"激发失败: {e}")
                     
     # 🎲 方案筛选 (中间桌面)
     if st.session_state.generated_cache:
