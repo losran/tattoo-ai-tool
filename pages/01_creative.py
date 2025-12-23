@@ -2,7 +2,57 @@ import streamlit as st
 from style_manager import apply_pro_style
 import requests, base64, random, time, json, urllib.parse
 from openai import OpenAI
+# --- 定位：在文件开头附近，import 语句之后插入 ---
+import json
+import os
+import random
+import numpy as np
 
+def load_json_db():
+    """从新地基加载数据"""
+    path = "data/creative_db.json"
+    if os.path.exists(path):
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+    def weighted_sample(category, template_config):
+    """
+    category: 分类名 (如 'Subject')
+    template_config: 当前选中的意图模板配置
+    """
+    db = load_json_db()
+    items = db.get(category, [])
+    
+    if not items:
+        return "空词库"
+
+    choices = []
+    weights = []
+
+    for item in items:
+        word = item['val']
+        # 基础权重，默认 1.0
+        score = item.get('weight_bonus', 1.0)
+        
+        # 获取该词在 JSON 里的标签
+        target = item.get('tags', {}).get('target', 'all')
+        vibe = item.get('tags', {}).get('vibe', 'general')
+
+        # --- 核心逻辑：根据模板给标签加分 ---
+        # 如果模板喜欢这个人群，权重乘 2
+        if target == template_config.get("preferred_target"):
+            score *= 2.0
+        # 如果模板喜欢这个调性，权重加 3
+        if vibe == template_config.get("preferred_vibe"):
+            score += 3.0
+            
+        choices.append(word)
+        weights.append(score)
+
+    # 按照权重随机选一个
+    # np.random.choice 需要概率总和为 1，所以要做个归一化
+    probs = np.array(weights) / sum(weights)
+    return np.random.choice(choices, p=probs)
 # 📍 傻瓜调用：全站视觉一键同步
 apply_pro_style()
 
