@@ -35,41 +35,37 @@ def load_json_db():
             return json.load(f)
     return {}
 
-# 3. 📍 核心：聪明采样函数 (确保左对齐，不缩进)
 def smart_sample(category, template_name):
-    """根据模板名和分类，从JSON里聪明抽词"""
-    db = load_json_db()
-    items = db.get(category, [])
+    # 加载 JSON
+    path = "data/creative_db.json"
+    if not os.path.exists(path): return "库不存在"
+    with open(path, 'r', encoding='utf-8') as f:
+        db = json.load(f)
     
-    if not items:
-        return "空词库"
+    # 💡 注意这里的路径：现在要从 db["words"] 里面拿词
+    items = db.get("words", {}).get(category, [])
+    if not items: return "空"
 
-    # 获取模板配置
-    pref = INTENT_PREFERENCES.get(template_name, INTENT_PREFERENCES["完全随机模式"])
+    # 从 db["templates"] 拿模板配置
+    tpl = db.get("templates", {}).get(template_name, {"pref_vibe": [], "pref_target": [], "boost": 1.0})
     
-    choices = []
-    weights = []
-
+    choices, weights = [], []
     for item in items:
-        word = item['val']
-        # 基础分：来自你在 Dashboard 手动填写的权重
+        choices.append(item['val'])
         score = float(item.get('weight_bonus', 1.0))
         
-        # 获取词的标签
-        word_tags = item.get('tags', {})
-        vibe = word_tags.get('vibe', 'general')
-        target = word_tags.get('target', 'all')
+        tags = item.get('tags', {})
+        vibe = tags.get('vibe', 'general')
+        target = tags.get('target', 'all')
         
-        # 匹配逻辑：命中偏好则加权
-        if vibe in pref["preferred_vibe"] or target in pref["preferred_target"]:
-            score *= pref["boost_factor"]
-
-        choices.append(word)
+        # 匹配加权
+        if vibe in tpl["pref_vibe"] or target in tpl["pref_target"]:
+            score *= tpl["boost"]
+            
         weights.append(score)
 
-    # 概率抽样
-    probs = np.array(weights) / sum(weights)
-    return np.random.choice(choices, p=probs)
+    return np.random.choice(choices, p=np.array(weights)/sum(weights))
+    
 # 📍 傻瓜调用：全站视觉一键同步
 apply_pro_style()
 
