@@ -121,7 +121,12 @@ with col_main:
             tone = style_map.get(style_tone, "随机")
             smart_db = {k: ai_pre_filter(k, intent_input, v, 20) if has_intent else random.sample(v, min(len(v), 20)) for k, v in db_all.items()}
             
-            prompt = f"风格：{tone}。意图：{intent_input if has_intent else '自由'}。从库中拼贴5-8个词形成艺术长句，每行一个，中文逗号分隔。禁止JSON。参考库：{smart_db}"
+            prompt = f"风格：{tone}。意图：{intent_input if has_intent else '自由'}。从库中拼贴5-8个词形成艺术长句，每行一个，中文逗号分隔。禁止JSON。【核心要求】：
+                1. 不要死板！请从词库中自由组合 7-8 个词汇。
+                2. 结构：风格 + 主体 + 随机动作 + 随机氛围 + 身体部位。
+                3. 要有一种“破碎、拼贴”的艺术感，词汇之间要有反差。
+                4. 输出格式：纯中文，用逗号分隔。参考库：{smart_db}"
+            
             try:
                 res = client.chat.completions.create(model="deepseek-chat", messages=[{"role": "user", "content": prompt}], temperature=0.5+(chaos_level/200))
                 lines = res.choices[0].message.content.strip().split('\n')
@@ -178,9 +183,9 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
                 else:
                     chaos_instruction = """
                     执行【风格强行融合】：
-                    1. 必须打破常规！例如：如果是日式风格，尝试用“液态金属”或“赛博霓虹”材质去表现。
-                    2. 制造反差感 (Contrast)！例如：可爱的外表下隐藏着机械结构，或者极简线条中爆发出绚丽色彩。
-                    3. 关键词要包含：Surrealism (超现实), Hybrid (混合体), Avant-garde (前卫), Glitch (故障感)。
+                    1. 必须打破常规！例如：如果是日式风格，尝试用“欧美复古”或“中式可爱”材质去表现。
+                    2. 制造反差感 (Contrast)！例如：可爱的外表下隐藏着水彩，或者极简线条中爆发出绚丽风光色彩。
+                    3. 关键词要包含：ART, Hybrid (混合体), old school, Y2K。
                     """
 
                 # 3. 构造 System Prompt - 微调要求让AI知道要逐行处理
@@ -198,12 +203,12 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
                 {chaos_instruction}
                 
                 【任务】：
-                将用户的**每一个**关键词方案，分别转化为英文 Prompt。
+                将用户的**每一个**关键词方案，分别转化为中文 Prompt。
                 Prompt 结构必须是：
                 (Best Quality), (Tattoo Sticker:1.3), [风格词], [融合后的视觉描述], white background
                 
                 【输出格式】：
-                请严格【逐行输出】，每一行对应一个方案。纯英文 Tag 列表，用逗号分隔。
+                请严格【逐行输出】，每一行对应一个方案。纯中文 Tag 列表，用逗号分隔。
                 """
 
                 # 4. 发送请求 (这里的 raw_input 加了编号，帮AI对齐)
