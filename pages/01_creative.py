@@ -202,8 +202,7 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
                 
                 【结构要求】：
                 - 必须以 '**方案X：**' 开头，保留双星号以便程序识别。
-                - 后面只跟一整句整理后的描述
-                - 不要加解释、不要加评价、不要加结尾总结
+                - 在每一行描述的最后，必须加上三个井号 '###' 作为结束符。
                 
                 【风格约束】：
                 - 风格倾向：{style_tone}
