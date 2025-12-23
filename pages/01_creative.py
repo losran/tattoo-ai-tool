@@ -121,7 +121,7 @@ with col_main:
             tone = style_map.get(style_tone, "随机")
             smart_db = {k: ai_pre_filter(k, intent_input, v, 20) if has_intent else random.sample(v, min(len(v), 20)) for k, v in db_all.items()}
             
-            prompt = f"风格：{tone}。意图：{intent_input if has_intent else '自由'}。从库中拼贴5-8个词形成艺术长句，每行一个，中文逗号分隔。禁止JSON。【核心要求】： 1. 不要死板！请从词库中自由组合 7-8 个词汇。 2. 结构：风格 + 主体 + 随机动作 + 随机氛围 + 身体部位。 3. 要有一种“破碎、拼贴”的艺术感，词汇之间要有反差。 4. 输出格式：纯中文，用逗号分隔。参考库：{smart_db}"
+            prompt = f"风格：{tone}。意图：{intent_input if has_intent else '自由'}。从库中拼贴15-18个词形成艺术长句，每行一个，中文逗号分隔。禁止JSON。【核心要求】： 1. 不要死板！请从词库中自由组合 10-18 个词汇。 2. 结构：风格 + 主体 + 随机动作 + 随机氛围 + 身体部位。 3. 要有一种“破碎、拼贴”的艺术感，词汇之间要有反差。 4. 输出格式：纯中文，用逗号分隔。参考库：{smart_db}"
             
             try:
                 res = client.chat.completions.create(model="deepseek-chat", messages=[{"role": "user", "content": prompt}], temperature=0.5+(chaos_level/200))
