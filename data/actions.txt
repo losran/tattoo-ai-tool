@@ -39,4 +39,5 @@ loosely scattered arrangement
 适配
 镜像
 镜像对称
+附着
 隔空连
