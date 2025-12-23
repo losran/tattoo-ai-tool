@@ -155,12 +155,12 @@ with col_main:
 # --- 4. 润色区与【关键自动化入口】 ---
 if st.session_state.selected_prompts and not st.session_state.polished_text:
     st.divider()
-    if st.button("✨ 确认并转化为绘画提示词 (Prompt)", type="primary", use_container_width=True):
+    if st.button("✨ 确认并转化为绘画提示词 (含方案锚点)", type="primary", use_container_width=True):
         st.session_state.generated_cache = [] # 清理桌面
         
-        with st.spinner(f"AI 正在执行【{style_tone}】风格的【{chaos_level}% 基因突变】..."):
+        with st.spinner(f"AI 正在执行【{style_tone}】风格的【{chaos_level}% 基因突变】并生成分段锚点..."):
             try:
-                # 1. 风格基调 (Style DNA) - 必须是平面/插画/纹身感，严禁写实
+                # 1. 风格基调 (Style DNA) - 保持你原版逻辑
                 style_dict = {
                     "可爱柔美": "Vector Art, thick rounded outlines, pastel flat colors, sticker art, kawaii core, no shading",
                     "轻盈水彩": "Hand-drawn Watercolor, ink bleed effect, white negative space, artistic splash, soft edges, illustration",
@@ -170,24 +170,20 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
                 }
                 current_style_tags = style_dict.get(style_tone, "2D Vector Art, clean lines")
 
-                # 2. 混乱度 = 风格融合与异化 (Chaos Logic)
-                # 混乱度越高，越要求 AI 进行“材质冲突”和“逻辑崩坏”
+                # 2. 混乱度逻辑 - 保持你原版逻辑
                 if chaos_level <= 30:
-                    # 低混乱：原教旨主义，纯正风格
                     chaos_instruction = "严格遵守风格定义，不要添加任何奇怪元素，保持画风纯正、传统、稳健。"
                 elif chaos_level <= 70:
-                    # 中混乱：微融合
                     chaos_instruction = "在保持风格基础的同时，加入异质元素。例如：在传统风格中加入现代几何形状，或使用非传统的配色方案。"
                 else:
-                    # 高混乱：基因突变/风格崩坏/奇妙融合
                     chaos_instruction = """
                     执行【风格强行融合】：
-                    1. 必须打破常规！例如：如果是日式风格，尝试用“液态金属”或“赛博霓虹”材质去表现。
-                    2. 制造反差感 (Contrast)！例如：可爱的外表下隐藏着机械结构，或者极简线条中爆发出绚丽色彩。
+                    1. 必须打破常规！例如：如果是日式风格，尝试用“欧美复古”或“中式可爱”材质去表现。
+                    2. 制造反差感 (Contrast)！例如：可爱的外表下隐藏着水彩，或者极简线条中爆发出绚丽色彩。
                     3. 关键词要包含：Surrealism (超现实), Hybrid (混合体), Avant-garde (前卫), Glitch (故障感)。
                     """
 
-                # 3. 构造 System Prompt
+                # 3. 构造 System Prompt - 微调要求让AI知道要逐行处理
                 system_prompt = f"""
                 你是一个专门设计【纹身贴纸 (Tattoo Sticker)】的 AI 指令专家。
                 
@@ -202,33 +198,53 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
                 {chaos_instruction}
                 
                 【任务】：
-                将用户关键词转化为英文 Prompt。
+                将用户的**每一个**关键词方案，分别转化为中文 Prompt。
                 Prompt 结构必须是：
-                (Best Quality), (Tattoo Sticker:1.3), [风格词], [融合后的视觉描述], white background
+                (Best Quality), (Tattoo Sticker:1.3), [风格词], [融合后的视觉描述],
                 
-                请输出纯英文 Tag 列表，用逗号分隔。
+                【输出格式】：
+                请严格【逐行输出】，每一行对应一个方案。纯中文 Tag 列表，用逗号分隔，提示词应该丰富。
                 """
 
-                # 4. 发送请求
-                raw_input = "\n".join(st.session_state.selected_prompts)
+                # 4. 发送请求 (这里的 raw_input 加了编号，帮AI对齐)
+                input_lines = [f"Scheme {i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)]
+                raw_input = "\n".join(input_lines)
+                
                 res = client.chat.completions.create(
                     model="deepseek-chat", 
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"用户原始脑洞：\n{raw_input}"}
+                        {"role": "user", "content": f"请逐行处理以下方案：\n{raw_input}"}
                     ], 
-                    temperature=0.6 + (chaos_level / 200) # 温度随混乱度升高，最高到 1.1
+                    temperature=0.6 + (chaos_level / 200)
                 )
                 
-                # 5. 物理前缀强制锁 (防止 AI 跑题)
+                # 5. 物理分段 + 锚点植入 (核心修改)
                 ai_output = res.choices[0].message.content.strip()
+                ai_lines = [line for line in ai_output.split('\n') if line.strip()]
+                
+                final_output_list = []
+                # 你的物理前缀
                 prefix = "(Masterpiece), (Tattoo Sticker:1.4), (2D:1.3), white background, "
                 
-                # 再次清洗，确保没有大段解释
-                clean_prompt = ai_output.replace("Prompt:", "").replace("提示词:", "").strip()
+                # 循环拼接，确保每一行都有“方案X:”
+                for idx, prompt_text in enumerate(ai_lines):
+                    # 防止AI回传的行数多于或少于输入，做一个安全截断
+                    if idx >= len(st.session_state.selected_prompts): break
+                    
+                    # 清洗一下AI可能自带的序号
+                    clean_prompt = prompt_text.split(':')[-1].split('.')[-1].strip()
+                    clean_prompt = clean_prompt.replace("Prompt:", "").replace("提示词:", "")
+                    
+                    # 组装：方案X: + 前缀 + 风格 + 内容
+                    formatted_line = f"方案{idx+1}: {prefix} {current_style_tags}, {clean_prompt}"
+                    final_output_list.append(formatted_line)
                 
-                final_prompt = f"{prefix} {current_style_tags}, {clean_prompt}"
-                st.session_state.polished_text = final_prompt
+                # 如果AI偶尔抽风只回了一行，这里做一个兜底，强行把所有方案都列出来
+                if not final_output_list and ai_output:
+                     final_output_list.append(f"方案1: {prefix} {current_style_tags}, {ai_output}")
+
+                st.session_state.polished_text = "\n\n".join(final_output_list)
                 st.rerun()
 
             except Exception as e: 
@@ -237,7 +253,7 @@ if st.session_state.selected_prompts and not st.session_state.polished_text:
 if st.session_state.polished_text:
     st.divider(); st.subheader("🎨 绘图提示词 (Ready)")
     
-    st.text_area("提示词预览：", st.session_state.polished_text, height=300)
+    st.text_area("提示词预览 (已加锚点)：", st.session_state.polished_text, height=300)
     
     # 自动化入口 (保证不丢！)
     c_auto_1, c_auto_2 = st.columns(2)
