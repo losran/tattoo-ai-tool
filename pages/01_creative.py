@@ -153,124 +153,57 @@ with col_main:
             if st.button("🗑️ 清空看板并强行解锁", use_container_width=True, type="secondary"):
                 st.session_state.generated_cache = []; st.session_state.selected_prompts = []; st.session_state.polished_text = ""; st.rerun()
 
-# --- 4. 润色区与【关键自动化入口】 ---
-if st.session_state.selected_prompts and not st.session_state.polished_text:
+# --- 昨晚极简增强版：保留双星号，植入生词与物理前缀 ---
+if st.session_state.selected_prompts:
+    if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
+        with st.spinner("正在构思..."):
+            # A. 物理前缀：确保每条提示词都带上生词和基础要求
+            style_tags = {
+                "可爱柔美": "Vector Art, thick rounded outlines, pastel flat colors, sticker art",
+                "轻盈水彩": "Hand-drawn Watercolor, ink bleed effect, white negative space",
+                "日式传统": "Ukiyo-e Style, bold black calligraphy lines, flat traditional colors",
+                "欧美极简": "Linework Tattoo, geometric abstraction, single weight line",
+                "自由盲盒": "Pop Art, mixed media collage, glitch art"
+            }.get(style_tone, "Vector Art")
+
+            # B. 极简指令：强制要求 AI 保持 **方案X：** 格式
+            combined = "\n".join([f"方案{i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)])
+            
+            # 这里是关键：在指令里直接要求 AI 把你的生词和前缀吞进去
+            system = (
+                f"你是一个纹身艺术顾问。将标签转化为中文提示词。混乱度{chaos_level}/100。\n"
+                f"【强制格式】：'**方案X：** (Masterpiece), (Tattoo Sticker:1.4), white background, {style_tags}, 内容'\n"
+                f"【要求】：必须保留双星号，必须分行。不要输出英文之外的解释。"
+            )
+            
+            res = client.chat.completions.create(
+                model="deepseek-chat", 
+                messages=[
+                    {"role": "system", "content": system}, 
+                    {"role": "user", "content": combined}
+                ]
+            ).choices[0].message.content
+            
+            st.session_state.polished_text = res
+            st.rerun()
+
+# 最终结果展示 (保持你昨晚的代码不变)
+if st.session_state.get('polished_text'):
     st.divider()
-    if st.button("✨ 确认并转化为绘画提示词 (含方案锚点)", type="primary", use_container_width=True):
-        st.session_state.generated_cache = [] # 清理桌面
-        
-        with st.spinner(f"AI 正在执行【{style_tone}】风格的【{chaos_level}% 基因突变】并生成分段锚点..."):
-            try:
-                # 1. 这里完全用你写好的 style_dict 逻辑，一个词都不动
-                style_dict = {
-                    "可爱柔美": "Vector Art, thick rounded outlines, pastel flat colors, sticker art, kawaii core, no shading",
-                    "轻盈水彩": "Hand-drawn Watercolor, ink bleed effect, white negative space, artistic splash, soft edges, illustration",
-                    "日式传统": "Ukiyo-e Style, bold black calligraphy lines, flat traditional colors, woodblock print texture, 2D",
-                    "欧美极简": "Linework Tattoo, geometric abstraction, single weight line, black and white, minimalist vector",
-                    "自由盲盒": "Pop Art, mixed media collage, glitch art, abstract shapes, bold graphic design"
-                }
-                current_style_tags = style_dict.get(style_tone, "2D Vector Art, clean lines")
-
-                # 2. 这里完全用你写好的混乱度逻辑，原封不动
-                if chaos_level <= 30:
-                    chaos_instruction = "严格遵守风格定义，不要添加任何奇怪元素，保持画风纯正、传统、稳健。"
-                elif chaos_level <= 70:
-                    chaos_instruction = "在保持风格基础的同时，加入异质元素。例如：在传统风格中加入现代几何形状，或使用非传统的配色方案。"
-                else:
-                    chaos_instruction = """
-                    执行【风格强行融合】：
-                    1. 必须打破常规！例如：如果是日式风格，尝试用“欧美复古”或“中式可爱”材质去表现。
-                    2. 制造反差感 (Contrast)！例如：可爱的外表下隐藏着水彩，或者极简线条中爆发出绚丽风光色彩。
-                    3. 关键词要包含：ART, Hybrid (混合体), old school, Y2K。
-                    """
-
-                # 3. 这里完全用你写好的系统提示词，一字不改
-                system_prompt = f"""
-                你是一名长期为潮流品牌、独立纹身师与艺术商店服务的【纹身贴纸设计指令专家】，
-                擅长将零散关键词，重组为具有清晰视觉叙事与设计气质的纹身贴画面语言。
-                
-                你生成的不是插画说明，而是【可直接用于生成图形资产的设计型 Prompt】。
-                
-                【绝对禁令】：
-                ❌ 禁止任何写实、渲染、摄影倾向（如：Photorealistic、3D、引擎感、照片感）。
-                ❌ 禁止出现环境或场景背景，画面必须是单一图形主体，Isolated on white background。
-                
-                【当前风格锚点】：
-                {current_style_tags}
-                （这些风格是画面的“世界观”，必须被自然吸收，而不是生硬堆叠）
-                
-                【混乱度 / 融合强度（{chaos_level}/100）】：
-                {chaos_instruction}
-                （数值越高，允许越多意外组合与跨语义联想，但整体仍需保持可读性与设计秩序）
-                
-                【任务】：
-                用户会提供多个关键词方案。
-                请你将【每一个方案】独立转化为一条完整的中文 Prompt，
-                要求画面具备明确主体、构成逻辑与情绪取向，
-                让人一眼能想象出“这是一张什么样的纹身贴”。
-                
-                【Prompt 固定结构（不可打乱）】：
-                (Best Quality), (Tattoo Sticker:1.3), [风格词], [融合后的视觉描述], white background
-                
-                其中：
-                - [风格词]：用于定义整体视觉语言与设计规则
-                - [融合后的视觉描述]：必须是一个“画面级描述”，而不是关键词堆砌
-                
-                【输出格式】：
-                请严格【逐行输出】。
-                每一行只包含一条 Prompt。
-                全部使用中文 Tag，用逗号分隔，不要编号，不要解释。
-                """
-
-                # 4. 发送请求
-                input_lines = [f"Scheme {i+1}: {p}" for i, p in enumerate(st.session_state.selected_prompts)]
-                raw_input = "\n".join(input_lines)
-                
-                res = client.chat.completions.create(
-                    model="deepseek-chat", 
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"请逐行处理以下方案：\n{raw_input}"}
-                    ], 
-                    temperature=0.6 + (chaos_level / 200)
-                )
-                
-                # 5. 🔥 核心修正：仅在这里做物理分割增强
-                ai_output = res.choices[0].message.content.strip()
-                ai_lines = [line.strip() for line in ai_output.split('\n') if line.strip()]
-                
-                final_output_list = []
-                # 你的物理前缀
-                prefix = "(Masterpiece), (Tattoo Sticker:1.4), (2D:1.3), white background, "
-                
-                for idx, prompt_text in enumerate(ai_lines):
-                    if idx >= len(st.session_state.selected_prompts): break
-                    
-                    # 清洗 AI 吐出的杂质
-                    clean_prompt = prompt_text.split(':')[-1].split('：')[-1].strip()
-                    clean_prompt = clean_prompt.replace("Prompt", "").replace("提示词", "").strip()
-                    
-                    # 🚀 在每个方案结尾强行加上 ###
-                    # 这样后面那一页的 user_input.split("###") 就能秒识别了！
-                    formatted_line = f"方案{idx+1}: {prefix} {current_style_tags}, {clean_prompt} ###"
-                    final_output_list.append(formatted_line)
-
-                # 合并成带有锚点的大文本
-                st.session_state.polished_text = "\n\n".join(final_output_list)
-                st.rerun()
-
-            except Exception as e: 
-                st.error(f"转化失败: {e}")
-
-if st.session_state.polished_text:
-    st.divider(); st.subheader("🎨 绘图提示词 (Ready)")
-    st.text_area("提示词预览 (已加锚点)：", st.session_state.polished_text, height=300)
+    st.subheader("🎨 艺术润色成品")
+    # 强制让预览框更高，方便检查
+    final_content = st.text_area("润色文案预览：", st.session_state.polished_text, height=400)
     
-    c_auto_1, c_auto_2 = st.columns(2)
-    with c_auto_1:
-        if st.button("🚀 发送到自动化生成", type="primary", use_container_width=True):
-            st.session_state.auto_input_cache = st.session_state.polished_text
+    c_btn1, c_btn2, c_btn3 = st.columns(3)
+    with c_btn1:
+        if st.button("💾 存入成品库", use_container_width=True):
+            current = get_github_data(GALLERY_FILE)
+            new = [l.strip() for l in final_content.split('\n') if l.strip() and '方案' not in l]
+            current.extend(new); save_to_github(GALLERY_FILE, current); st.success("已存档")
+    with c_btn2:
+        if st.button("🚀 发送到自动化", type="primary", use_container_width=True):
+            st.session_state.auto_input_cache = final_content
             st.switch_page("pages/02_automation.py")
-    with c_auto_2:
-        if st.button("🔄 重新生成 (解锁)", use_container_width=True):
+    with c_btn3:
+        if st.button("🔄 重新调配", use_container_width=True):
             st.session_state.polished_text = ""; st.rerun()
