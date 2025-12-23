@@ -36,31 +36,29 @@ def load_json_db():
     return {}
 
 def smart_sample(category, template_name):
-    # 加载 JSON
     path = "data/creative_db.json"
     if not os.path.exists(path): return "库不存在"
     with open(path, 'r', encoding='utf-8') as f:
         db = json.load(f)
     
-    # 💡 注意这里的路径：现在要从 db["words"] 里面拿词
-    items = db.get("words", {}).get(category, [])
-    if not items: return "空"
+    # 💡 核心指路：从 db["words"] 拿词，从 db["templates"] 拿规则
+    words_dict = db.get("words", {})
+    items = words_dict.get(category, [])
+    if not items: return f"[{category}空]"
 
-    # 从 db["templates"] 拿模板配置
-    tpl = db.get("templates", {}).get(template_name, {"pref_vibe": [], "pref_target": [], "boost": 1.0})
+    templates = db.get("templates", {})
+    tpl = templates.get(template_name, {"pref_vibe": [], "pref_target": [], "boost": 1.0})
     
     choices, weights = [], []
     for item in items:
         choices.append(item['val'])
+        # 这里的 weight_bonus 就是你在 Dashboard 表格里改的那个数字
         score = float(item.get('weight_bonus', 1.0))
         
+        # 匹配模板加成
         tags = item.get('tags', {})
-        vibe = tags.get('vibe', 'general')
-        target = tags.get('target', 'all')
-        
-        # 匹配加权
-        if vibe in tpl["pref_vibe"] or target in tpl["pref_target"]:
-            score *= tpl["boost"]
+        if tags.get('vibe') in tpl.get("pref_vibe", []):
+            score *= tpl.get("boost", 1.0)
             
         weights.append(score)
 
