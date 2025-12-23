@@ -1,4 +1,3 @@
-balloon
 bow
 cherry
 gift box
