@@ -55,7 +55,28 @@ def save_to_github(path, data_list):
         requests.put(url, headers=headers, json={"message": "update", "content": b64_content, "sha": get_resp.get('sha')}, timeout=15)
         return True
     except: return False
-
+        
+def ai_pre_filter(category, user_intent, inventory, limit=15):
+    """
+    智能预选词库：仅在有输入意图时调用
+    """
+    if not user_intent or len(inventory) <= limit:
+        return random.sample(inventory, min(len(inventory), limit))
+    
+    prompt = f"意图：{user_intent}\n分类：{category}\n词库：{inventory}\n任务：从中挑选出最符合意图的 {limit} 个词。只返回词汇，逗号分隔。"
+    try:
+        res = client.chat.completions.create(
+            model="deepseek-chat", 
+            messages=[{"role": "user", "content": prompt}], 
+            temperature=0.3
+        )
+        filtered_words = res.choices[0].message.content.replace("，", ",").split(",")
+        # 确保选出来的词确实在词库里
+        valid_words = [w.strip() for w in filtered_words if w.strip() in inventory]
+        return valid_words if valid_words else random.sample(inventory, limit)
+    except:
+        return random.sample(inventory, limit)
+        
 # --- 3. UI 布局与 Session 初始化 ---
 st.set_page_config(layout="wide", page_title="Creative Engine")
 
@@ -123,45 +144,46 @@ with col_main:
     intent_input = st.text_area("✍️ 组合意图输入框", value=st.session_state.manual_editor, placeholder="输入核心关键词，如：宇航员、玫瑰...", disabled=is_working)
     st.session_state.manual_editor = intent_input
 
-    # 2. 按钮行：数量选择 + 激发按钮
-    col_btn_l, col_btn_r = st.columns([1, 4]) # 1:4 的比例，让按钮占主体
+# 2. 按钮行：数量选择 + 激发按钮
+    col_btn_l, col_btn_r = st.columns([1, 4])
     with col_btn_l:
-        num = st.number_input("数量", 1, 10, 6, label_visibility="collapsed") # 隐藏标签更整洁
+        num = st.number_input("数量", 1, 10, 6, label_visibility="collapsed")
     with col_btn_r:
-        btn_label = "🔥 激发创意组合"
-        if st.button(btn_label, type="primary", use_container_width=True, disabled=is_working):
+        if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
             db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
             
-            # --- A. 根据“审美光谱”确定视觉DNA ---
-            if style_spectrum <= 15:
-                style_dna = "风格：可爱柔美、治愈系。特点：线条圆滑、意象温馨、拒绝硬色调。"
-            elif style_spectrum <= 45:
-                style_dna = "风格：现代水彩插画。特点：灵动晕染、光影虚实结合、意象轻盈。"
-            elif style_spectrum <= 80:
-                style_dna = "风格：日式传统/Old School。特点：粗黑线条、对比色强烈、构图饱满张扬。"
-            else:
-                style_dna = "风格：欧美极简主义。特点：硬朗直线、几何解构、高度概括、冷峻感。"
-
-            # --- B. 根据“混乱程度”决定AI随机性 ---
-            # 脑洞越大，Temperature越高，抽词范围越广
-            dynamic_temp = 0.4 + (chaos_level / 100) * 0.55 
-            sample_size = int(15 + (chaos_level / 100) * 20)
-
-            with st.spinner(f"正在以 {chaos_level}% 脑洞碰撞创意..."):
-                sample_db = {k: random.sample(v, min(len(v), sample_size)) for k, v in db_all.items()}
+            with st.spinner("AI 正在深度调配词库..."):
+                # --- 🟢 核心改动：判断是否有输入意图 ---
+                smart_sample_db = {}
+                has_intent = bool(intent_input.strip())
                 
-                fast_prompt = f"""
-                你是一位跨界纹身艺术大师。
-                意图：{intent_input}
-                视觉流派锁定：{style_dna}
-                创意发散度：{chaos_level}/100（混乱度高则允许超现实、荒诞的组合）
+                for k, v in db_all.items():
+                    if has_intent:
+                        # 模式 A：意图驱动。混乱度越高，越允许混入随机词
+                        ai_choice_count = int(15 * (1 - chaos_level/200)) # 混乱度高，AI选词少点
+                        rand_choice_count = 15 - ai_choice_count
+                        
+                        ai_words = ai_pre_filter(k, intent_input, v, limit=ai_choice_count)
+                        rand_words = random.sample(v, min(len(v), rand_choice_count))
+                        smart_sample_db[k] = list(set(ai_words + rand_words))
+                    else:
+                        # 模式 B：纯随机抽样。根据混乱度决定抽样池大小
+                        sample_size = int(15 + (chaos_level / 100) * 20)
+                        smart_sample_db[k] = random.sample(v, min(len(v), sample_size))
 
-                任务：基于意图并参考词库，生成 {num} 个方案。
-                要求：
-                1. 线条感和视觉意象必须符合上述“视觉流派”描述。
-                2. 方案格式：主体，动作，风格，氛围，部位
-                3. 直接返回结果，每行一个，禁止废话。
-                词库参考：{sample_db}
+                # --- 风格 DNA 判定 ---
+                if style_spectrum <= 15: dna = "风格：可爱柔美。"
+                elif style_spectrum <= 45: dna = "风格：水彩写意。"
+                elif style_spectrum <= 80: dna = "风格：日式传统。"
+                else: dna = "风格：欧美极简。"
+
+                # --- 执行生成 ---
+                dynamic_temp = 0.4 + (chaos_level / 100) * 0.55
+                fast_prompt = f"""
+                意图：{intent_input if has_intent else '自由发挥'}
+                风格锁定：{dna}
+                参考词库：{smart_sample_db}
+                任务：生成 {num} 个方案（主体，动作，风格，氛围，部位）。
                 """
                 
                 try:
@@ -174,7 +196,7 @@ with col_main:
                     st.session_state.generated_cache = [line.strip() for line in raw_list if "，" in line][:num]
                     st.rerun()
                 except Exception as e:
-                    st.error(f"激发失败: {e}")
+                    st.error(f"生成失败: {e}")
                     
     # 🎲 方案筛选 (中间桌面)
     if st.session_state.generated_cache:
