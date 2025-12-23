@@ -155,28 +155,96 @@ with col_main:
 # --- 4. 润色区与【关键自动化入口】 ---
 if st.session_state.selected_prompts and not st.session_state.polished_text:
     st.divider()
-    if st.button("✨ 确认并开始艺术润色", type="primary", use_container_width=True):
-        st.session_state.generated_cache = []
-        with st.spinner("AI 深度润色中..."):
+    if st.button("✨ 确认并转化为绘画提示词 (Prompt)", type="primary", use_container_width=True):
+        st.session_state.generated_cache = [] # 清理桌面
+        
+        with st.spinner(f"AI 正在执行【{style_tone}】风格的【{chaos_level}% 基因突变】..."):
             try:
-                res = client.chat.completions.create(model="deepseek-chat", 
-                    messages=[{"role": "system", "content": f"纹身策展人。风格：{style_tone}"},
-                              {"role": "user", "content": f"润色这些方案：\n" + "\n".join(st.session_state.selected_prompts)}], temperature=0.7)
-                st.session_state.polished_text = res.choices[0].message.content
+                # 1. 风格基调 (Style DNA) - 必须是平面/插画/纹身感，严禁写实
+                style_dict = {
+                    "可爱柔美": "Vector Art, thick rounded outlines, pastel flat colors, sticker art, kawaii core, no shading",
+                    "轻盈水彩": "Hand-drawn Watercolor, ink bleed effect, white negative space, artistic splash, soft edges, illustration",
+                    "日式传统": "Ukiyo-e Style, bold black calligraphy lines, flat traditional colors, woodblock print texture, 2D",
+                    "欧美极简": "Linework Tattoo, geometric abstraction, single weight line, black and white, minimalist vector",
+                    "自由盲盒": "Pop Art, mixed media collage, glitch art, abstract shapes, bold graphic design"
+                }
+                current_style_tags = style_dict.get(style_tone, "2D Vector Art, clean lines")
+
+                # 2. 混乱度 = 风格融合与异化 (Chaos Logic)
+                # 混乱度越高，越要求 AI 进行“材质冲突”和“逻辑崩坏”
+                if chaos_level <= 30:
+                    # 低混乱：原教旨主义，纯正风格
+                    chaos_instruction = "严格遵守风格定义，不要添加任何奇怪元素，保持画风纯正、传统、稳健。"
+                elif chaos_level <= 70:
+                    # 中混乱：微融合
+                    chaos_instruction = "在保持风格基础的同时，加入异质元素。例如：在传统风格中加入现代几何形状，或使用非传统的配色方案。"
+                else:
+                    # 高混乱：基因突变/风格崩坏/奇妙融合
+                    chaos_instruction = """
+                    执行【风格强行融合】：
+                    1. 必须打破常规！例如：如果是日式风格，尝试用“液态金属”或“赛博霓虹”材质去表现。
+                    2. 制造反差感 (Contrast)！例如：可爱的外表下隐藏着机械结构，或者极简线条中爆发出绚丽色彩。
+                    3. 关键词要包含：Surrealism (超现实), Hybrid (混合体), Avant-garde (前卫), Glitch (故障感)。
+                    """
+
+                # 3. 构造 System Prompt
+                system_prompt = f"""
+                你是一个专门设计【纹身贴纸 (Tattoo Sticker)】的 AI 指令专家。
+                
+                【绝对禁令】：
+                ❌ 严禁出现：Photorealistic, 3D Render, Unreal Engine, Hyper-realistic, Photo.
+                ❌ 严禁出现背景：必须是 Isolated on white background.
+                
+                【当前风格锚点】：
+                {current_style_tags}
+                
+                【混乱度/融合指令 ({chaos_level}/100)】：
+                {chaos_instruction}
+                
+                【任务】：
+                将用户关键词转化为英文 Prompt。
+                Prompt 结构必须是：
+                (Best Quality), (Tattoo Sticker:1.3), [风格词], [融合后的视觉描述], white background
+                
+                请输出纯英文 Tag 列表，用逗号分隔。
+                """
+
+                # 4. 发送请求
+                raw_input = "\n".join(st.session_state.selected_prompts)
+                res = client.chat.completions.create(
+                    model="deepseek-chat", 
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"用户原始脑洞：\n{raw_input}"}
+                    ], 
+                    temperature=0.6 + (chaos_level / 200) # 温度随混乱度升高，最高到 1.1
+                )
+                
+                # 5. 物理前缀强制锁 (防止 AI 跑题)
+                ai_output = res.choices[0].message.content.strip()
+                prefix = "(Masterpiece), (Tattoo Sticker:1.4), (2D:1.3), white background, "
+                
+                # 再次清洗，确保没有大段解释
+                clean_prompt = ai_output.replace("Prompt:", "").replace("提示词:", "").strip()
+                
+                final_prompt = f"{prefix} {current_style_tags}, {clean_prompt}"
+                st.session_state.polished_text = final_prompt
                 st.rerun()
-            except Exception as e: st.error(f"润色失败: {e}")
+
+            except Exception as e: 
+                st.error(f"转化失败: {e}")
 
 if st.session_state.polished_text:
-    st.divider(); st.subheader("🎨 润色成品")
-    st.text_area("文案预览：", st.session_state.polished_text, height=300)
+    st.divider(); st.subheader("🎨 绘图提示词 (Ready)")
     
-    # 📍 找回你丢失的命脉：自动化分发按钮
+    st.text_area("提示词预览：", st.session_state.polished_text, height=300)
+    
+    # 自动化入口 (保证不丢！)
     c_auto_1, c_auto_2 = st.columns(2)
     with c_auto_1:
-        if st.button("🚀 发送到自动化分发", type="primary", use_container_width=True):
-            # 将文案存入缓存，准备跳转
+        if st.button("🚀 发送到自动化生成", type="primary", use_container_width=True):
             st.session_state.auto_input_cache = st.session_state.polished_text
             st.switch_page("pages/02_automation.py")
     with c_auto_2:
-        if st.button("🔄 重新调配 (解锁)", use_container_width=True):
+        if st.button("🔄 重新生成 (解锁)", use_container_width=True):
             st.session_state.polished_text = ""; st.rerun()
