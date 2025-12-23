@@ -133,95 +133,76 @@ with col_gallery:
 
 # --- 🔵 左侧：核心生成区 ---
 with col_main:
-    # 1. 风格调性：使用分段选择器（比下拉栏更好看，一目了然）
-    style_tone = st.radio(
-        "🎭 风格调性",
-        options=["自由盲盒", "可爱柔美", "轻盈水彩", "日式传统", "欧美极简"],
-        horizontal=True,
-        help="选择'自由盲盒'将完全随机生成，不锁定任何风格倾向"
-    )
+    # 1. 顶部控制栏：流派调性 + 创意混乱度
+    col_cfg1, col_cfg2 = st.columns(2)
+    with col_cfg1:
+        # 这里定义 style_tone，确保后端能读到这个名字
+        style_tone = st.select_slider(
+            "🎨 风格调性选择",
+            options=["自由盲盒", "可爱柔美", "轻盈水彩", "日式传统", "欧美极简"],
+            value="日式传统"
+        )
+    with col_cfg2:
+        # 这里定义 chaos_level，后端所有报错都指向这个名字
+        chaos_level = st.slider("🌀 创意碰撞 (混乱度)", 0, 100, 50)
 
-    # 2. 混乱程度：保留但作为“脑洞系数”
-    chaos_val = st.select_slider(
-        "🌀 创意碰撞 (混乱度)",
-        options=["严谨", "均衡", "疯狂"],
-        value="均衡"
-    )
+    # 2. 意图输入
+    intent_input = st.text_area("✍️ 组合意图输入框", placeholder="输入关键词，如：宇航员、玫瑰...", height=100)
 
-    intent_input = st.text_area("✍️ 组合意图输入框", placeholder="输入你想画的内容，留空则完全随机...")
-
-# 2. 按钮行：数量选择 + 激发按钮
+    # 3. 按钮行：数量 + 激发按钮
     col_btn_l, col_btn_r = st.columns([1, 4])
     with col_btn_l:
         num = st.number_input("数量", 1, 10, 6, label_visibility="collapsed")
     with col_btn_r:
         if st.button("🔥 激发创意组合", type="primary", use_container_width=True, disabled=is_working):
-            # 1. 核心修复：确保变量在这里一定能读到
-            # 这里的 style_tone 和 chaos_level 必须对应你前面 slider/radio 的 key
-            current_style = style_tone 
-            current_chaos = chaos_level 
-            
-            # 获取数据
+            # 获取仓库数据
             db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
             
-            with st.spinner("AI 正在根据调性和意图深度融合中..."):
-                # --- A. 逻辑判断 ---
+            with st.spinner("AI 正在深度调配中..."):
+                # --- 核心修复：直接使用上面定义好的变量名 ---
                 has_intent = bool(intent_input.strip())
-                is_blind_box = (current_style == "自由盲盒")
                 
-                if is_blind_box:
-                    style_instruction = "不限风格，请在词库中大胆跨界碰撞，追求极致的随机惊喜。"
+                # 确定风格指令
+                if style_tone == "自由盲盒":
+                    style_instruction = "不限风格，极致随机。"
                 else:
-                    style_instruction = f"强制要求将用户意图与【{current_style}】风格进行深度融合。即使意图与之冲突，也要创作出具有该风格特征的变形设计。"
+                    style_instruction = f"将意图与【{style_tone}】风格强制融合。"
 
-                # --- B. 智能采样 ---
+                # 智能采样
                 smart_sample_db = {}
                 for k, v in db_all.items():
-                    if not v: # 防止库为空报错
-                        smart_sample_db[k] = ["默认元素"]
-                        continue
                     if has_intent:
-                        # 尝试 AI 预选，失败则随机
                         try:
                             smart_sample_db[k] = ai_pre_filter(k, intent_input, v, limit=15)
                         except:
                             smart_sample_db[k] = random.sample(v, min(len(v), 15))
                     else:
-                        # 随机抽样
-                        s_size = int(15 + (current_chaos / 100) * 20)
+                        # 统一使用 chaos_level
+                        s_size = int(15 + (chaos_level / 100) * 20)
                         smart_sample_db[k] = random.sample(v, min(len(v), s_size))
 
-                # --- C. 动态参数 ---
-                dynamic_temp = 0.4 + (current_chaos / 100) * 0.55 
-
-                # --- D. 核心指令包 (这就是你要的 fast_prompt) ---
+                # 发送指令给 AI (fast_prompt)
                 fast_prompt = f"""
-                任务：作为纹身策展大师，生成 {num} 个方案。
-                意图：{intent_input if has_intent else '完全随机'}
+                任务：生成 {num} 个方案。
+                意图：{intent_input if has_intent else '随机灵感'}
                 调性：{style_instruction}
-                混乱度：{current_chaos}/100
-
-                要求：
-                1. 必须融合意图与风格调性。
-                2. 格式：主体，动作，风格，氛围，部位
-                3. 只返回列表，禁止解释。
-
+                脑洞：{chaos_level}/100
                 参考词库：{smart_sample_db}
+                要求：主体，动作，风格，氛围，部位。只返回列表。
                 """
 
-                # --- E. 寄出并处理 ---
                 try:
                     res = client.chat.completions.create(
                         model="deepseek-chat",
                         messages=[{"role": "user", "content": fast_prompt}],
-                        temperature=dynamic_temp
+                        temperature= 0.4 + (chaos_level / 100) * 0.5
                     )
                     raw_content = res.choices[0].message.content.strip()
                     raw_list = raw_content.split('\n')
                     st.session_state.generated_cache = [line.strip() for line in raw_list if "，" in line or "," in line][:num]
                     st.rerun()
                 except Exception as e:
-                    st.error(f"AI 激发失败: {e}")
+                    st.error(f"激发失败: {e}")
                     
     # 🎲 方案筛选 (中间桌面)
     if st.session_state.generated_cache:
