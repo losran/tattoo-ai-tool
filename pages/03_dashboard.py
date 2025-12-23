@@ -103,19 +103,22 @@ if st.button("🪄 启动 AI 一键全量打标", type="secondary", use_containe
         st.success(f"✅ AI 进化完成！已自动识别并更新 {count} 个词汇的标签。")
         st.rerun()
 
-# --- 3. 核心调控区 ---
-tab_words, tab_templates = st.tabs(["🏷️ 词库与权重调控", "🎯 意图模板配置"])
+# --- 修改 Tab 定义 ---
+tab_words, tab_templates, tab_prompts = st.tabs(["🏷️ 词库与权重调控", "🎯 意图模板配置", "🔮 AI 咒语调教"])
 
-with tab_words:
-    category = st.selectbox("选择维度", list(WAREHOUSE_CONFIG.keys()))
-    words_list = db["words"].get(category, [])
-    if words_list:
-        df = pd.DataFrame([{"词汇": i["val"], "权重": i["weight_bonus"], "调性": i["tags"]["vibe"]} for i in words_list])
-        edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
-        if st.button(f"💾 保存 {category} 修改"):
-            db["words"][category] = [{"val": r["词汇"], "weight_bonus": float(r["权重"]), "tags": {"vibe": r["调性"], "target": "all"}} for _, r in edited_df.iterrows()]
-            save_db(db)
-            st.success("保存成功")
+with tab_prompts:
+    st.subheader("🔮 AI 自动洗标咒语配置")
+    st.caption("在这里修改 AI 识别标签时的逻辑，无需改动 GitHub 代码。")
+    
+    # 动态编辑咒语
+    new_sys = st.text_area("系统人格设定 (System Prompt)", value=db["prompts"]["tagger_system"], height=100)
+    new_user = st.text_area("分类规则指令 (User Prompt)", value=db["prompts"]["tagger_user"], height=200, help="注意：必须保留 {word} 占位符")
+    
+    if st.button("💾 保存咒语配置"):
+        db["prompts"]["tagger_system"] = new_sys
+        db["prompts"]["tagger_user"] = new_user
+        save_db(db)
+        st.success("咒语已更新，下次‘一键洗标’将采用新规则！")
 
 with tab_templates:
     # --- 定位：替换 with tab_templates: 内部的所有内容 ---
