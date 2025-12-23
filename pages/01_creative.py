@@ -59,10 +59,11 @@ def save_to_github(path, data_list):
 # --- 3. UI 布局与 Session 初始化 ---
 st.set_page_config(layout="wide", page_title="Creative Engine")
 
-for key in ['selected_prompts', 'history_workbench', 'polished_text', 'manual_editor']:
+# 💡 确保这行包含 history_log，这是报错的关键
+for key in ['selected_prompts', 'generated_cache', 'history_log', 'polished_text', 'manual_editor']:
     if key not in st.session_state:
         st.session_state[key] = "" if 'editor' in key or 'text' in key else []
-
+        
 # 🔒 定义全局锁定状态 (缩进为 0)
 is_working = len(st.session_state.polished_text) > 0
 
@@ -160,19 +161,22 @@ if st.button("🔥 激发创意组合", type="primary", use_container_width=True
                 st.session_state.history_workbench = []; st.session_state.selected_prompts = []; st.session_state.polished_text = ""
                 st.rerun()
 
-if st.session_state.selected_prompts and not st.session_state.polished_text:
+# 4. ✨ 润色逻辑
+    if st.session_state.selected_prompts and not st.session_state.polished_text:
         st.divider()
         if st.button("✨ 确认方案并开始润色", type="primary", use_container_width=True):
-            # 💡 核心逻辑：归档丢弃的方案
-            abandoned = [p for p in st.session_state.generated_cache if p not in st.session_state.selected_prompts]
-            if abandoned:
-                # 统一变量名为 history_log，防止 NameError
-                st.session_state.history_log = abandoned + st.session_state.history_log
+            # 🚀 归档逻辑：找出当前 generated_cache 中没被选中的，存入 history_log
+            if st.session_state.generated_cache:
+                abandoned = [p for p in st.session_state.generated_cache if p not in st.session_state.selected_prompts]
+                if abandoned:
+                    st.session_state.history_log = abandoned + st.session_state.history_log
             
-            # 归档后清空中间，腾出桌面
+            # 归档后立刻清空中间操作台，防止视觉混乱
             st.session_state.generated_cache = [] 
 
             with st.spinner("AI 注入灵魂中..."):
+                # ... 下方是你原有的 API 请求逻辑 (client.chat.completions.create)
+                
                 combined_input = "\n".join([f"方案{idx+1}: {p}" for idx, p in enumerate(st.session_state.selected_prompts)])
                 # ... (此处接你原来的 AI 请求代码，确保变量名 is_working 能对上) ...
                 # ... (后续 AI 润色请求逻辑保持不变) ...
