@@ -14,6 +14,7 @@ loosely scattered arrangement
 勾勒
 勾边
 区分
+印
 反光
 发光
 受力
