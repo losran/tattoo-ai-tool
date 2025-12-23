@@ -7,7 +7,8 @@ import requests
 import base64
 from openai import OpenAI
 from style_manager import apply_pro_style
-
+if 'history_log' not in st.session_state:
+    st.session_state.history_log = []
 # 📍 视觉样式同步
 apply_pro_style()
 
@@ -69,37 +70,62 @@ is_working = len(st.session_state.polished_text) > 0
 st.title("🎨 创意引擎")
 col_main, col_gallery = st.columns([5, 2.5])
 
-# --- 右侧：仓库管理 ---
+# --- 右侧：仓库管理 (上) + 历史记录 (下) ---
 with col_gallery:
+    # 1. 仓库管理区 (保持你原来的 radio 切换)
     st.subheader("📦 仓库管理")
     mode = st.radio("模式", ["素材仓库", "灵感成品"], horizontal=True)
+    
     if mode == "素材仓库":
         cat = st.selectbox("当前分类", list(WAREHOUSE.keys()))
         words = get_github_data(WAREHOUSE[cat])
         if words:
-            selected_items = []
-            with st.container(height=500, border=True):
+            with st.container(height=300, border=True):
                 for w in words:
-                    if st.checkbox(f" {w}", key=f"manage_{cat}_{w}"): selected_items.append(w)
-            if selected_items:
-                if st.button("➕ 导入到输入框", use_container_width=True, disabled=is_working):
-                    st.session_state.manual_editor = f"{st.session_state.manual_editor} {' '.join(selected_items)}".strip()
-                    st.rerun()
-    else: # 灵感成品模式
+                    if st.checkbox(f" {w}", key=f"cat_{cat}_{w}"):
+                        # 逻辑：勾选即存入待选
+                        if w not in st.session_state.selected_prompts:
+                            st.session_state.selected_prompts.append(w)
+    else:
         insps = get_github_data(GALLERY_FILE)
         if insps:
-            with st.container(height=500, border=True):
+            with st.container(height=300, border=True):
                 for i in insps:
-                    # 💡 逻辑简化：勾选后直接追加到中间的历史工作台
-                    if st.checkbox(i, key=f"lib_insp_{abs(hash(i))}"):
-                        if i not in st.session_state.history_workbench:
-                            st.session_state.history_workbench.insert(0, i) # 插入到最前面
-            
-            # 底部只留一个删除按钮，保持清爽
-            if st.button("🗑️ 删除勾选灵感", type="primary", use_container_width=True, disabled=is_working):
-                # 过滤掉已勾选的，保存剩余的
-                # (注意：这里的删除逻辑需配合 checkbox 的状态，建议维持现状)
-                pass
+                    if st.checkbox(i, key=f"insp_lib_{abs(hash(i))}"):
+                        # 逻辑：勾选即存入待选
+                        if i not in st.session_state.selected_prompts:
+                            st.session_state.selected_prompts.append(i)
+        
+        if st.button("🗑️ 删除库内勾选", type="primary", use_container_width=True, disabled=is_working):
+            # 这里的删除逻辑建议根据你之前的实现补充
+            pass
+
+    # 2. 📜 历史档案区 (永远在下方，不随模式切换消失)
+    st.divider()
+    st.subheader("📜 激发历史")
+    
+    # 每次激发新方案时，务必在激发按钮逻辑里执行：
+    # st.session_state.history_workbench = new_batch + st.session_state.history_workbench
+    
+    if st.session_state.history_workbench:
+        with st.container(height=400, border=True):
+            for idx, h_text in enumerate(st.session_state.history_workbench):
+                # 历史勾选逻辑：勾选后同步到左侧待润色
+                is_in_selected = h_text in st.session_state.selected_prompts
+                if st.checkbox(f"{len(st.session_state.history_workbench)-idx}. {h_text}", 
+                               key=f"h_log_{abs(hash(h_text))}_{idx}",
+                               value=is_in_selected,
+                               disabled=is_working):
+                    if not is_working:
+                        if h_text not in st.session_state.selected_prompts:
+                            st.session_state.selected_prompts.append(h_text)
+                        # 注意：这里不写 else remove，防止取消历史勾选影响了手动选择
+        
+        if st.button("🗑️ 清空历史", use_container_width=True, disabled=is_working):
+            st.session_state.history_workbench = []
+            st.rerun()
+    else:
+        st.caption("暂无历史记录，开始激发吧！")
 
 # --- 左侧：核心生成区 ---
 with col_main:
@@ -123,6 +149,8 @@ with col_main:
                 new_batch.append(f"{s}，{a}，{st_val}风格，{m}氛围，纹在{u}")
             st.session_state.history_workbench = new_batch + st.session_state.history_workbench
         st.rerun()
+        # 生成新方案后，顺手扔进历史档案室
+    st.session_state.history_log = new_batch + st.session_state.history_log
 
     # 3. 🎲 历史方案筛选 (带锁定逻辑)
     if st.session_state.history_workbench:
