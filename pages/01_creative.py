@@ -206,7 +206,7 @@ with col_main:
                     cur.extend(st.session_state.selected_prompts)
                     if save_to_github(GALLERY_FILE, cur): st.toast("✅ 已存档")
         with ct2:
-            if st.button("🗑️ 清空看板并强行解锁", use_container_width=True, type="secondary"):
+            if st.button("🗑️ 清空看板", use_container_width=True, type="secondary"):
                 st.session_state.generated_cache = []; st.session_state.selected_prompts = []
                 st.session_state.polished_text = ""; st.rerun()
 
