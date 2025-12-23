@@ -133,7 +133,7 @@ with col_gallery:
 
 # --- 🔵 左侧：核心生成区 ---
 with col_main:
-    # 1. 顶部控制栏：风格调性 + 创意混乱度
+    # 1. 顶部控制栏：流派调性 + 创意混乱度
     col_cfg1, col_cfg2 = st.columns(2)
     with col_cfg1:
         style_tone = st.select_slider(
@@ -159,63 +159,64 @@ with col_main:
     if execute_button:
         db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
         
-        with st.spinner("AI 正在深度调配中..."):
+        with st.spinner("AI 正在释放灵感碰撞..."):
             has_intent = bool(intent_input.strip())
             
-            # A. 风格指令判定
-            if style_tone == "自由盲盒":
-                style_instruction = "不限风格，极致随机跨界。"
-            else:
-                style_instruction = f"将意图与【{style_tone}】风格强制融合，即使冲突也要做风格化变形。"
+            # A. 风格倾向性引导
+            style_mapping = {
+                "可爱柔美": "可爱治愈风格",
+                "轻盈水彩": "写意透明水彩风格",
+                "日式传统": "日式 Old School 风格",
+                "欧美极简": "欧美冷峻极简风格",
+                "自由盲盒": "完全随机、不设限的艺术风格"
+            }
+            tone_name = style_mapping.get(style_tone, "自由发挥")
 
-            # B. 智能词库采样
+            # B. 词库预选（如果有输入就辅助选词，没有就随机）
             smart_sample_db = {}
             for k, v in db_all.items():
                 if has_intent:
                     try:
-                        smart_sample_db[k] = ai_pre_filter(k, intent_input, v, limit=15)
+                        smart_sample_db[k] = ai_pre_filter(k, intent_input, v, limit=20)
                     except:
-                        smart_sample_db[k] = random.sample(v, min(len(v), 15))
+                        smart_sample_db[k] = random.sample(v, min(len(v), 20))
                 else:
-                    s_size = int(15 + (chaos_level / 100) * 20)
-                    smart_sample_db[k] = random.sample(v, min(len(v), s_size))
+                    smart_sample_db[k] = random.sample(v, min(len(v), 25))
 
-            # C. 核心指令包 (强力纠正格式，严禁 JSON)
+            # C. 核心指令：找回最初那种“自由堆叠”的感觉
+            # 删掉了一切死板的格式限制，只要“风格+主体+随机词”
             fast_prompt = f"""
-            任务：作为纹身策展大师，生成 {num} 个方案。
-            意图：{intent_input if has_intent else '完全随机灵感'}
-            调性：{style_instruction}
-            混乱度：{chaos_level}/100
-
-            【硬性要求】：
-            1. 严禁返回任何大括号{{}}、严禁返回JSON格式、严禁返回“主体：”等键值对！
-            2. 必须严格遵守下方示例格式，每行只有5个元素，用中文逗号“，”隔开。
-            3. 只输出列表，不准有任何解释。
-
-            【格式示例】：
-            机械心脏，跳动，赛博朋克，压抑，胸口
+            你是一位顶级的纹身艺术设计师。请根据以下要求给出 {num} 个极具视觉冲击力的纹身方案。
             
+            【核心要求】：
+            1. 每个方案必须以“{tone_name}”为基调。
+            2. 每个方案的核心必须包含“{intent_input if has_intent else '随机灵感'}”。
+            3. 重点：请围绕核心，从词库中自由组合 5 到 8 个词汇。不要死板，要有一种“破碎、拼贴、意识流”的艺术感。
+            4. 方案格式：风格词 + 主体词 + 随机动作 + 随机氛围词 + 随机身体部位（不需要固定顺序，词多一点没关系）。
+
             【参考词库】：
             {smart_sample_db}
 
-            【立即开始生成列表】：
+            【注意事项】：
+            - 每一行代表一个方案。
+            - 每个方案内的词请用“，”隔开。
+            - 严禁输出大括号、键值对或 JSON。
+            - 只输出方案列表，禁止解释说明。
             """
 
-            # D. 发送请求
             try:
                 res = client.chat.completions.create(
                     model="deepseek-chat",
                     messages=[{"role": "user", "content": fast_prompt}],
-                    temperature= 0.4 + (chaos_level / 100) * 0.5
+                    temperature= 0.5 + (chaos_level / 100) * 0.45 # 脑洞越大，越自由
                 )
                 raw_content = res.choices[0].message.content.strip()
                 
-                # E. 强力清洗数据，确保卡片显示正常
+                # 清洗数据，只留文字
                 raw_list = raw_content.split('\n')
                 st.session_state.generated_cache = [
-                    line.replace('"', '').replace('{', '').replace('}', '').strip() 
-                    for line in raw_list 
-                    if "，" in line and "{" not in line
+                    line.replace('"', '').replace('{', '').replace('}', '').replace('方案', '').replace(': ', '').strip() 
+                    for line in raw_list if "，" in line or "," in line
                 ][:num]
                 st.rerun()
             except Exception as e:
