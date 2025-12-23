@@ -202,19 +202,20 @@ with col_main:
                 except Exception as e:
                     st.error(f"润色失败: {e}")
 
+# 5. 展示润色成品 (删除存入库功能，只保留自动化和重调)
     if st.session_state.polished_text:
-        st.divider(); st.subheader("🎨 艺术润色成品")
+        st.divider()
+        st.subheader("🎨 艺术润色成品")
         final_content = st.text_area("文案预览：", st.session_state.polished_text, height=400)
-        c_btn1, c_btn2, c_btn3 = st.columns(3)
-        with c_btn1:
-            if st.button("💾 存入成品库", use_container_width=True):
-                current = get_github_data(GALLERY_FILE)
-                new = [l.strip() for l in final_content.split('\n') if l.strip() and '方案' not in l]
-                current.extend(new); save_to_github(GALLERY_FILE, current); st.success("已存档")
-        with c_btn2:
+        
+        # 只保留两个核心按钮
+        c_btn_auto, c_btn_reset = st.columns(2)
+        with c_btn_auto:
             if st.button("🚀 发送到自动化", type="primary", use_container_width=True):
                 st.session_state.auto_input_cache = final_content
                 st.switch_page("pages/02_automation.py")
-        with c_btn3:
+        with c_btn_reset:
             if st.button("🔄 重新调配", use_container_width=True):
-                st.session_state.polished_text = ""; st.session_state.selected_prompts = []; st.rerun()
+                st.session_state.polished_text = ""
+                # 这里不清除 selected_prompts，方便用户微调
+                st.rerun()
