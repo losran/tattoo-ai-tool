@@ -103,51 +103,65 @@ with col_gallery:
                 if st.checkbox(f"备选 {h_idx+1}: {h_text}", key=f"h_{h_idx}", value=h_text in st.session_state.selected_prompts, disabled=is_working):
                     if h_text not in st.session_state.selected_prompts: st.session_state.selected_prompts.append(h_text); st.rerun()
 
-# --- 🔵 左侧：生成核心区 ---
-with col_main:
-    c1, c2 = st.columns(2)
-    with c1:
-        style_tone = st.radio("🎭 风格调性点选", options=["自由盲盒", "可爱柔美", "轻盈水彩", "日式传统", "欧美极简"], horizontal=True, index=3)
-    with c2:
-        chaos_level = st.slider("🌀 创意碰撞 (混乱度)", 0, 100, 50)
+if execute_button:
+    st.session_state.polished_text = ""  # 解锁
+    db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
 
-    intent_input = st.text_area("✍️ 组合意图输入框", placeholder="输入关键词...", height=100)
-    st.session_state.manual_editor = intent_input
+    with st.spinner("🚀 灵感爆发中..."):
+        new_batch = []
 
-    cb_btn, cb_num = st.columns([4, 1])
-    with cb_btn:
-        execute_button = st.button("🔥 激发创意组合", type="primary", use_container_width=True)
-    with cb_num:
-        num = st.number_input("数量", 1, 10, 6, label_visibility="collapsed")
+        # ===== ① 从分层仓库取词（第三步）=====
+        subjects = smart_sample_with_ai("Subject", intent_input, db_all["Subject"], chaos_level)
+        actions  = smart_sample_with_ai("Action",  intent_input, db_all["Action"],  chaos_level)
+        moods    = smart_sample_with_ai("Mood",    intent_input, db_all["Mood"],    chaos_level)
+        usages   = smart_sample_with_ai("Usage",   intent_input, db_all["Usage"],   chaos_level)
 
-    if execute_button:
-        st.session_state.polished_text = "" # 点击即解锁
-        db_all = {k: get_github_data(v) for k, v in WAREHOUSE.items()}
-        with st.spinner("🚀 灵感爆发中..."):
-            has_intent = bool(intent_input.strip())
-            style_map = {"可爱柔美": "可爱治愈", "轻盈水彩": "透明水彩", "日式传统": "日式Old School", "欧美极简": "极简几何", "自由盲盒": "前卫跨界"}
-            tone = style_map.get(style_tone, "随机")
-            smart_db = {k: ai_pre_filter(k, intent_input, v, 20) if has_intent else random.sample(v, min(len(v), 20)) for k, v in db_all.items()}
-            
-            prompt = f"风格：{tone}。意图：{intent_input if has_intent else '自由'}。从库中拼贴15-18个词形成艺术长句，每行一个，中文逗号分隔。禁止JSON。【核心要求】： 1. 不要死板！请从词库中自由组合 10-18 个词汇。 2. 结构：风格 + 风格 +风格 +主体 +主体+ 随机动作 +随机动作 +随机动作 + 随机氛围 + 随机氛围 + 随机氛围 + 随机氛围 + 随机氛围 + 身体部位。 3. 要有一种“破碎、拼贴”的艺术感，词汇之间要有反差。 4. 输出格式：纯中文，用逗号分隔。参考库：{smart_db}"
-            
-            try:
-                res = client.chat.completions.create(model="deepseek-chat", messages=[{"role": "user", "content": prompt}], temperature=0.5+(chaos_level/200))
-                lines = res.choices[0].message.content.strip().split('\n')
-                st.session_state.generated_cache = [l.split(':')[-1].strip() for l in lines if "，" in l or "," in l][:num]
-                st.rerun()
-            except Exception as e: st.error(f"失败: {e}")
+        style_system  = smart_sample_with_ai("StyleSystem",  intent_input, db_all["StyleSystem"],  chaos_level)
+        style_tech    = smart_sample_with_ai("Technique",    intent_input, db_all["Technique"],    chaos_level)
+        style_color   = smart_sample_with_ai("Color",        intent_input, db_all["Color"],        chaos_level)
+        style_texture = smart_sample_with_ai("Texture",      intent_input, db_all["Texture"],      chaos_level)
+        style_comp    = smart_sample_with_ai("Composition",  intent_input, db_all["Composition"],  chaos_level)
+        style_accent  = smart_sample_with_ai("Accent",       intent_input, db_all["Accent"],       chaos_level)
 
-    if st.session_state.generated_cache:
-        st.divider(); st.subheader("🎲 方案筛选")
-        cols = st.columns(2)
-        for idx, p in enumerate(st.session_state.generated_cache):
-            with cols[idx % 2]:
-                is_sel = p in st.session_state.selected_prompts
-                if st.button(f"{idx+1}. {p}", key=f"g_{idx}", type="primary" if is_sel else "secondary", use_container_width=True):
-                    if is_sel: st.session_state.selected_prompts.remove(p)
-                    else: st.session_state.selected_prompts.append(p)
-                    st.rerun()
+        # ===== ② chaos → 取词数量映射 =====
+        def chaos_pick(c, low, mid, high):
+            if c < 30:
+                return random.randint(*low)
+            elif c < 70:
+                return random.randint(*mid)
+            else:
+                return random.randint(*high)
+
+        for _ in range(num):
+            s  = random.sample(subjects, min(len(subjects), 1))
+            a  = random.sample(actions,  min(len(actions), chaos_pick(chaos_level, (1,1),(1,2),(2,3))))
+            m  = random.sample(moods,    min(len(moods),   chaos_pick(chaos_level, (1,2),(2,3),(3,4))))
+
+            ss = random.sample(style_system,  min(len(style_system), 1))
+            st = random.sample(style_tech,    min(len(style_tech),   chaos_pick(chaos_level,(1,2),(2,3),(3,4))))
+            sc = random.sample(style_color,   min(len(style_color),  1))
+            sx = random.sample(style_texture, min(len(style_texture),chaos_pick(chaos_level,(0,1),(1,1),(1,2))))
+            sp = random.sample(style_comp,    min(len(style_comp),   1))
+
+            sa = []
+            if chaos_level > 60 and style_accent:
+                sa = random.sample(style_accent, 1)
+
+            u  = random.sample(usages, min(len(usages), 1))
+
+            # ===== ③ 最终拼接（结构稳定）=====
+            new_batch.append(
+                f"{'，'.join(s)}，"
+                f"{'，'.join(ss)}，{'，'.join(st)}，{'，'.join(sc)}，"
+                f"{'，'.join(sx)}，{'，'.join(sp)}，"
+                f"{'，'.join(a)}，{'，'.join(m)}，"
+                + (f"{'，'.join(sa)}，" if sa else "")
+                + f"纹在{'，'.join(u)}"
+            )
+
+        st.session_state.generated_cache = new_batch
+        st.rerun()
+
         
         st.markdown("<br>", unsafe_allow_html=True)
         ct1, ct2 = st.columns(2)
