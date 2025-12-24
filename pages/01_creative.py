@@ -16,12 +16,20 @@ GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO = "losran/tattoo-ai-tool"
 
 WAREHOUSE = {
-    "Subject": "data/subjects.txt", 
-    "Action": "data/actions.txt", 
-    "Style": "data/styles.txt", 
-    "Mood": "data/moods.txt", 
-    "Usage": "data/usage.txt"
+    "Subject": "data/subjects.txt",
+    "Action": "data/actions.txt",
+    "Mood": "data/moods.txt",
+    "Usage": "data/usage.txt",
+
+    # 👇 新增的风格分层
+    "StyleSystem": "data/styles_system.txt",
+    "Technique": "data/styles_technique.txt",
+    "Color": "data/styles_color.txt",
+    "Texture": "data/styles_texture.txt",
+    "Composition": "data/styles_composition.txt",
+    "Accent": "data/styles_accent.txt"
 }
+
 GALLERY_FILE = "gallery/inspirations.txt"
 
 # --- 2. 核心函数 ---
